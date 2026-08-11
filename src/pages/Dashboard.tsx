@@ -6,17 +6,20 @@ import {
   GraduationCapIcon,
   Layers2Icon,
   QrCodeIcon,
+  UserCogIcon,
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react"
 
 import { api, type DashboardStats } from "@/lib/api"
+import { useSession } from "@/lib/session"
 import { PageHeader } from "@/components/page-header"
 import { StatCard } from "@/components/stat-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function DashboardPage() {
+  const { role } = useSession()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -75,6 +78,16 @@ export default function DashboardPage() {
           loading={loading}
           to="/marks"
         />
+        {role === "admin" && (
+          <StatCard
+            title="Pending Members"
+            value={stats?.pendingMembers ?? undefined}
+            icon={UserCogIcon}
+            iconClassName="bg-primary/10 text-primary"
+            loading={loading}
+            to="/members"
+          />
+        )}
       </div>
 
       <Card>
@@ -117,6 +130,17 @@ export default function DashboardPage() {
             <GraduationCapIcon className="size-6" />
             Enter Marks
           </Button>
+          {role === "admin" && (
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-auto flex-col gap-2 py-4"
+              render={<Link to="/members" />}
+            >
+              <UserCogIcon className="size-6" />
+              Club Members
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

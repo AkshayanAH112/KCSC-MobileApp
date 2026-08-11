@@ -1,4 +1,4 @@
-import { clearToken, getToken, setToken } from "@/lib/storage"
+import { clearRole, clearToken, getToken, setRole, setToken, type Role } from "@/lib/storage"
 
 const API_BASE_URL: string =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
@@ -64,7 +64,28 @@ export interface DashboardStats {
   absentToday: number
   lowAttendanceCount: number
   publishedPosts: number
+  pendingMembers: number | null
   recentMarks: number
+}
+
+export type MemberStatus = "pending" | "approved" | "rejected"
+
+export interface Member {
+  _id: string
+  fullName: string
+  phone: string
+  email?: string
+  dateOfBirth?: string
+  address?: string
+  guardianName?: string
+  guardianPhone?: string
+  interest?: string
+  message?: string
+  status: MemberStatus
+  reviewNotes?: string
+  reviewedBy?: { email: string } | null
+  reviewedAt?: string
+  createdAt: string
 }
 
 export interface RosterEntry {
@@ -133,7 +154,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const message =
       (data as { error?: string }).error ?? `Request failed (${res.status})`
-    if (res.status === 401) await clearToken()
+    if (res.status === 401) {
+      await clearToken()
+      await clearRole()
+    }
     throw new ApiError(message, res.status)
   }
   return data as T
@@ -141,10 +165,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   async login(email: string, password: string): Promise<void> {
-    const data = await request<{ success: boolean; token?: string }>(
-      "/api/auth/login",
-      { method: "POST", body: JSON.stringify({ email, password }) }
-    )
+    const data = await request<{
+      success: boolean
+      token?: string
+      user?: { email: string; role: Role }
+    }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    })
     if (!data.token) {
       throw new ApiError(
         "Server did not return a token — deploy the updated web app.",
@@ -152,13 +180,33 @@ export const api = {
       )
     }
     await setToken(data.token)
+    // Local only, for nav gating (hiding Club Members from an lms_manager) — the
+    // API re-checks the real role from the token on every request regardless.
+    if (data.user?.role) await setRole(data.user.role)
   },
 
   async logout(): Promise<void> {
     await clearToken()
+    await clearRole()
   },
 
   dashboardStats: () => request<DashboardStats>("/api/dashboard/stats"),
+
+  members: (status?: MemberStatus) =>
+    request<{ members: Member[] }>(
+      `/api/members${status ? `?status=${status}` : ""}`
+    ),
+
+  memberDetail: (id: string) => request<{ member: Member }>(`/api/members/${id}`),
+
+  reviewMember: (id: string, data: { status: MemberStatus; reviewNotes?: string }) =>
+    request<{ member: Member }>(`/api/members/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteMember: (id: string) =>
+    request<{ success: boolean }>(`/api/members/${id}`, { method: "DELETE" }),
 
   students: (params?: { grade?: string; batchId?: string }) => {
     const qs = new URLSearchParams(

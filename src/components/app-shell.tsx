@@ -8,11 +8,13 @@ import {
   LogOutIcon,
   MenuIcon,
   QrCodeIcon,
+  UserCogIcon,
   UsersIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
+import { useSession } from "@/lib/session"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -35,6 +37,13 @@ const moreLinks = [
   { to: "/attendance/today", label: "Today's Attendance", icon: CalendarCheckIcon },
 ]
 
+// Admin-only — see RequireAdmin in App.tsx. Kept out of the primary 4-tab bar so
+// the lms_manager and admin bottom nav stay visually identical; this only shows
+// up in the "more" sheet, and only for admins.
+const adminMoreLinks = [
+  { to: "/members", label: "Club Members", icon: UserCogIcon },
+]
+
 const titles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/students": "Students",
@@ -42,12 +51,15 @@ const titles: Record<string, string> = {
   "/batches": "Batches",
   "/marks": "Marks",
   "/attendance/today": "Today's Attendance",
+  "/members": "Club Members",
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { role } = useSession()
   const [moreOpen, setMoreOpen] = React.useState(false)
+  const visibleMoreLinks = role === "admin" ? [...moreLinks, ...adminMoreLinks] : moreLinks
 
   const title =
     titles[location.pathname] ??
@@ -57,7 +69,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ? "Batch"
         : location.pathname.startsWith("/classes")
           ? "Class Session"
-          : "KCSC")
+          : location.pathname.startsWith("/members")
+            ? "Member"
+            : "KCSC")
 
   const handleLogout = async () => {
     await api.logout()
@@ -87,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <SheetTitle>Menu</SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-1 px-2">
-                {moreLinks.map(({ to, label, icon: Icon }) => (
+                {visibleMoreLinks.map(({ to, label, icon: Icon }) => (
                   <NavLink
                     key={to}
                     to={to}

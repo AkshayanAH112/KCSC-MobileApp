@@ -12,7 +12,16 @@ There is no fee or payment surface anywhere in this app — classes are free.
 ## Screens
 
 Dashboard · Students · Batches & Classes · **Scanner** (the primary daily task) · Marks ·
-Today's Attendance
+Today's Attendance · Club Members (`admin` sessions only)
+
+### Two staff roles
+
+The login response carries a `role` (`admin` or `lms_manager`), cached locally purely to decide
+what to show — the API re-checks the real role from the JWT on every request regardless, so this
+is UX polish, not the security boundary. `lms_manager` sees every screen above except Club Members;
+it's not in the "more" sheet and `/members` redirects away if navigated to directly
+(`RequireAdmin` in `src/App.tsx`). There is no staff-account management UI on mobile — creating
+logins is rare enough that it stays web-only, at `Web app`'s `/admin/staff`.
 
 ## Setup
 
