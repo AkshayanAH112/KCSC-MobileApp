@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { api, type Member, type MemberStatus } from "@/lib/api"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -90,6 +91,8 @@ export default function MemberDetailPage() {
   const rows: [string, string | undefined][] = [
     ["Phone", member.phone],
     ["Email", member.email],
+    ["NIC", member.nic],
+    ["Member type", member.memberType],
     [
       "Date of birth",
       member.dateOfBirth ? new Date(member.dateOfBirth).toLocaleDateString() : undefined,
@@ -98,6 +101,7 @@ export default function MemberDetailPage() {
     ["Guardian", member.guardianName],
     ["Guardian phone", member.guardianPhone],
     ["Interest", member.interest],
+    ["Member ID", member.memberCode],
   ]
 
   return (
@@ -113,11 +117,19 @@ export default function MemberDetailPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-lg">{member.fullName}</CardTitle>
-            <Badge variant={STATUS_VARIANT[member.status]} className="capitalize">
-              {member.status}
-            </Badge>
+          <div className="flex items-start gap-3">
+            <Avatar size="lg">
+              <AvatarImage src={member.photoUrl} alt="" />
+              <AvatarFallback>{member.fullName.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-lg">{member.fullName}</CardTitle>
+                <Badge variant={STATUS_VARIANT[member.status]} className="capitalize">
+                  {member.status}
+                </Badge>
+              </div>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
             Applied {new Date(member.createdAt).toLocaleDateString()}

@@ -4,6 +4,7 @@ import { SearchIcon } from "lucide-react"
 
 import { api, type Member, type MemberStatus } from "@/lib/api"
 import { PageHeader } from "@/components/page-header"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -102,20 +103,26 @@ export default function MembersPage() {
               className="cursor-pointer py-4 transition-colors active:bg-muted/50"
               onClick={() => navigate(`/members/${m._id}`)}
             >
-              <CardContent className="px-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 truncate font-semibold">{m.fullName}</p>
-                  <Badge variant={STATUS_VARIANT[m.status]} className="capitalize shrink-0">
-                    {m.status}
-                  </Badge>
+              <CardContent className="flex items-start gap-3 px-4">
+                <Avatar>
+                  <AvatarImage src={m.photoUrl} alt="" />
+                  <AvatarFallback>{m.fullName.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate font-semibold">{m.fullName}</p>
+                    <Badge variant={STATUS_VARIANT[m.status]} className="capitalize shrink-0">
+                      {m.status}
+                    </Badge>
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {m.phone}
+                    {m.interest ? ` · ${m.interest}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Applied {new Date(m.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {m.phone}
-                  {m.interest ? ` · ${m.interest}` : ""}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Applied {new Date(m.createdAt).toLocaleDateString()}
-                </p>
               </CardContent>
             </Card>
           ))}

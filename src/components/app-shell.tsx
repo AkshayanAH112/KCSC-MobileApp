@@ -5,6 +5,7 @@ import {
   GraduationCapIcon,
   HomeIcon,
   Layers2Icon,
+  LineChartIcon,
   LogOutIcon,
   MenuIcon,
   QrCodeIcon,
@@ -25,23 +26,33 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 
-const tabs = [
+const staffTabs = [
   { to: "/dashboard", label: "Home", icon: HomeIcon },
   { to: "/students", label: "Students", icon: UsersIcon },
   { to: "/scanner", label: "Scan", icon: QrCodeIcon },
   { to: "/batches", label: "Batches", icon: Layers2Icon },
 ]
 
+// Admin swaps Scan for Club Members in the primary tab bar — attendance scanning
+// is a day-to-day LMS task, club membership review is the admin-specific one.
+// See RequireAdmin in App.tsx for the route guard.
+const adminTabs = [
+  { to: "/dashboard", label: "Home", icon: HomeIcon },
+  { to: "/students", label: "Students", icon: UsersIcon },
+  { to: "/members", label: "Members", icon: UserCogIcon },
+  { to: "/batches", label: "Batches", icon: Layers2Icon },
+]
+
 const moreLinks = [
   { to: "/marks", label: "Marks & Reports", icon: GraduationCapIcon },
+  { to: "/analysis", label: "Analysis", icon: LineChartIcon },
   { to: "/attendance/today", label: "Today's Attendance", icon: CalendarCheckIcon },
 ]
 
-// Admin-only — see RequireAdmin in App.tsx. Kept out of the primary 4-tab bar so
-// the lms_manager and admin bottom nav stay visually identical; this only shows
-// up in the "more" sheet, and only for admins.
+// Scanner moves out of the admin primary tab bar (replaced by Club Members above)
+// but stays reachable from the "more" sheet rather than disappearing outright.
 const adminMoreLinks = [
-  { to: "/members", label: "Club Members", icon: UserCogIcon },
+  { to: "/scanner", label: "Scanner", icon: QrCodeIcon },
 ]
 
 const titles: Record<string, string> = {
@@ -50,6 +61,7 @@ const titles: Record<string, string> = {
   "/scanner": "Scanner",
   "/batches": "Batches",
   "/marks": "Marks",
+  "/analysis": "Analysis",
   "/attendance/today": "Today's Attendance",
   "/members": "Club Members",
 }
@@ -59,7 +71,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const { role } = useSession()
   const [moreOpen, setMoreOpen] = React.useState(false)
-  const visibleMoreLinks = role === "admin" ? [...moreLinks, ...adminMoreLinks] : moreLinks
+  const isAdmin = role === "admin"
+  const tabs = isAdmin ? adminTabs : staffTabs
+  const visibleMoreLinks = isAdmin ? [...moreLinks, ...adminMoreLinks] : moreLinks
 
   const title =
     titles[location.pathname] ??

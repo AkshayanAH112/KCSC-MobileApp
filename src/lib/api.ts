@@ -53,6 +53,21 @@ export interface MarksRecord {
   marks: number
   maxMarks: number
   grade: Grade
+  // Not set on records saved before this field existed — a grade can have more
+  // than one active batch at once (e.g. a new intake starting while an older
+  // one is still running), so grade alone doesn't uniquely scope an exam roster.
+  batchId?: Batch | string | null
+}
+
+export interface AnalysisResult {
+  studentId: string
+  name: string
+  grade: Grade
+  examCount: number
+  avgMarksPercent: number | null
+  attendancePercent: number | null
+  combinedScore: number | null
+  partial: boolean
 }
 
 export interface DashboardStats {
@@ -77,6 +92,10 @@ export interface Member {
   email?: string
   dateOfBirth?: string
   address?: string
+  nic?: string
+  photoUrl?: string
+  memberType?: string
+  memberCode?: string
   guardianName?: string
   guardianPhone?: string
   interest?: string
@@ -293,10 +312,12 @@ export const api = {
       recordedCount: number
     }>("/api/attendance", { method: "POST", body: JSON.stringify(data) }),
 
-  marks: (grade?: string) =>
-    request<{ marks: MarksRecord[] }>(
-      `/api/marks${grade ? `?grade=${grade}` : ""}`
-    ),
+  marks: (params?: { grade?: string; batchId?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params ?? {}).filter(([, v]) => v)
+    ).toString()
+    return request<{ marks: MarksRecord[] }>(`/api/marks${qs ? `?${qs}` : ""}`)
+  },
 
   saveMarks: (
     data: Array<{
@@ -306,10 +327,20 @@ export const api = {
       marks: number
       maxMarks: number
       grade: number
+      batchId?: string
     }>
   ) =>
     request<{ success: boolean; count: number }>("/api/marks", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  analysis: (params: { start: string; end: string; grade?: string; batchId?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v) as [string, string][]
+    ).toString()
+    return request<{ students: AnalysisResult[]; range: { start: string; end: string } }>(
+      `/api/analysis?${qs}`
+    )
+  },
 }

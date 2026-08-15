@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ClipboardListIcon, SendIcon } from "lucide-react"
 
-import { api, type Student } from "@/lib/api"
+import { api, type Batch, type Student } from "@/lib/api"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +22,22 @@ export default function MarksPage() {
   const [examDate, setExamDate] = useState("")
   const [maxMarks, setMaxMarks] = useState(100)
 
+  // A grade can have more than one active batch at once (e.g. a new intake
+  // starting while an older one is still running) — grade alone doesn't
+  // uniquely scope an exam roster, same fix as the web Marks page.
+  const [batches, setBatches] = useState<Batch[]>([])
+  const [batchId, setBatchId] = useState("")
+  const gradeBatches = batches.filter((b) => b.grades.includes(Number(grade) as 3 | 4 | 5))
+
+  useEffect(() => {
+    api.batches().then((d) => setBatches(d.batches))
+  }, [])
+
+  useEffect(() => {
+    setBatchId(gradeBatches[0]?._id ?? "")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grade, batches])
+
   const [students, setStudents] = useState<Student[]>([])
   const [entries, setEntries] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
@@ -35,7 +51,7 @@ export default function MarksPage() {
     setLoading(true)
     setMessage(null)
     try {
-      const d = await api.students({ grade })
+      const d = await api.students({ grade, batchId: batchId || undefined })
       setStudents(d.students)
       setEntries({})
       if (d.students.length === 0) {
@@ -61,6 +77,7 @@ export default function MarksPage() {
         marks: Number(entries[s._id]),
         maxMarks,
         grade: Number(grade),
+        batchId: batchId || undefined,
       }))
     if (payload.length === 0) {
       setMessage({ text: "Enter marks for at least one student.", kind: "error" })
@@ -117,23 +134,29 @@ export default function MarksPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="batch">Batch</Label>
+              <Select
+                id="batch"
+                value={batchId}
+                onChange={(e) => setBatchId(e.target.value)}
+              >
+                {gradeBatches.length === 0 && <option value="">No batches for this grade</option>}
+                {gradeBatches.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label htmlFor="examDate">Exam Date</Label>
               <Input
                 id="examDate"
                 type="date"
                 value={examDate}
                 onChange={(e) => setExamDate(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="subject">Subject</Label>
-              <Input
-                id="subject"
-                placeholder="e.g. Mathematics"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -146,6 +169,15 @@ export default function MarksPage() {
                 onChange={(e) => setMaxMarks(Number(e.target.value))}
               />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="subject">Subject</Label>
+            <Input
+              id="subject"
+              placeholder="e.g. Mathematics"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
           </div>
           <Button
             className="w-full"

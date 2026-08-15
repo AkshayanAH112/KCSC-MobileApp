@@ -19,6 +19,7 @@ import MarksPage from "@/pages/Marks"
 import AttendanceTodayPage from "@/pages/AttendanceToday"
 import MembersPage from "@/pages/Members"
 import MemberDetailPage from "@/pages/MemberDetail"
+import AnalysisPage from "@/pages/Analysis"
 
 /** Decides the landing screen: dashboard (authed) → welcome (first run) → login. */
 function Launch() {
@@ -96,6 +97,7 @@ export default function App() {
         <Route path="/classes/:id" element={<ClassDetailPage />} />
         <Route path="/scanner" element={<ScannerPage />} />
         <Route path="/marks" element={<MarksPage />} />
+        <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/attendance/today" element={<AttendanceTodayPage />} />
         <Route element={<RequireAdmin />}>
           <Route path="/members" element={<MembersPage />} />
