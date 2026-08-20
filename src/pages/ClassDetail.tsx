@@ -3,16 +3,28 @@ import { useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
+  PencilIcon,
   SearchIcon,
+  Trash2Icon,
   XCircleIcon,
 } from "lucide-react"
 
-import { api, type ClassSession, type RosterEntry } from "@/lib/api"
+import { api, ApiError, type Batch, type ClassSession, type RosterEntry } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { ConfirmDialog, AlertModal } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 
 export default function ClassDetailPage() {
@@ -22,6 +34,9 @@ export default function ClassDetailPage() {
   const [roster, setRoster] = useState<RosterEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [editOpen, setEditOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!id) return
@@ -59,6 +74,19 @@ export default function ClassDetailPage() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!id || !classSession) return
+    setConfirmDeleteOpen(false)
+    try {
+      await api.deleteClass(id)
+      const batchId =
+        typeof classSession.batchId === "object" ? classSession.batchId._id : classSession.batchId
+      navigate(`/batches/${batchId}`, { replace: true })
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to delete")
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center p-12">
@@ -89,7 +117,17 @@ export default function ClassDetailPage() {
 
       <Card className="py-4">
         <CardContent className="px-4">
-          <Badge variant="secondary">Grade {classSession.grade}</Badge>
+          <div className="flex items-start justify-between gap-2">
+            <Badge variant="secondary">Grade {classSession.grade}</Badge>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" aria-label="Edit class" onClick={() => setEditOpen(true)}>
+                <PencilIcon />
+              </Button>
+              <Button variant="outline" size="icon" aria-label="Delete class" onClick={() => setConfirmDeleteOpen(true)}>
+                <Trash2Icon className="text-destructive" />
+              </Button>
+            </div>
+          </div>
           <h1 className="mt-2 font-heading text-lg font-bold">
             {classSession.subject || "General Session"}
           </h1>
@@ -169,6 +207,121 @@ export default function ClassDetailPage() {
           </Card>
         ))}
       </div>
+
+      {editOpen && (
+        <EditClassDialog
+          classSession={classSession}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false)
+            fetchData()
+          }}
+        />
+      )}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete this class session?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        tone="danger"
+      />
+      <AlertModal open={error !== null} onClose={() => setError(null)} title="Failed to delete" description={error ?? undefined} tone="danger" />
     </div>
+  )
+}
+
+function EditClassDialog({
+  classSession,
+  onClose,
+  onSaved,
+}: {
+  classSession: ClassSession
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [batches, setBatches] = useState<Batch[]>([])
+  const [form, setForm] = useState({
+    batchId: typeof classSession.batchId === "object" ? classSession.batchId._id : classSession.batchId,
+    grade: String(classSession.grade),
+    date: classSession.date.slice(0, 10),
+    time: classSession.time ?? "",
+    subject: classSession.subject ?? "",
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.batches().then((d) => setBatches(d.batches))
+  }, [])
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await api.updateClass(classSession._id, { ...form, grade: Number(form.grade) })
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Class Session</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={save} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editClassBatch">Batch</Label>
+              <Select id="editClassBatch" required value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })}>
+                {batches.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editClassGrade">Grade</Label>
+              <Select id="editClassGrade" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })}>
+                <option value="3">Grade 3</option>
+                <option value="4">Grade 4</option>
+                <option value="5">Grade 5</option>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editClassDate">Date</Label>
+              <Input id="editClassDate" type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editClassTime">Time</Label>
+              <Input id="editClassTime" type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="editClassSubject">Subject</Label>
+            <Input id="editClassSubject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? <Spinner /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+      <AlertModal open={error !== null} onClose={() => setError(null)} title="Failed to save" description={error ?? undefined} tone="danger" />
+    </Dialog>
   )
 }

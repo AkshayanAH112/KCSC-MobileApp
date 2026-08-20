@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { CalendarPlusIcon, ChevronRightIcon, PlusIcon } from "lucide-react"
 
 import { api, type Batch, type ClassSession } from "@/lib/api"
@@ -23,6 +23,8 @@ import { Spinner } from "@/components/ui/spinner"
 
 export default function BatchesPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [filterGrade, setFilterGrade] = useState(searchParams.get("grade") ?? "")
   const [batches, setBatches] = useState<Batch[]>([])
   const [classes, setClasses] = useState<ClassSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,7 +34,17 @@ export default function BatchesPage() {
   const [batchForm, setBatchForm] = useState({
     name: "",
     year: new Date().getFullYear(),
+    grades: [3, 4, 5] as number[],
   })
+
+  const toggleBatchGrade = (g: number) => {
+    setBatchForm((prev) => ({
+      ...prev,
+      grades: prev.grades.includes(g)
+        ? prev.grades.filter((x) => x !== g)
+        : [...prev.grades, g].sort(),
+    }))
+  }
 
   const [classOpen, setClassOpen] = useState(false)
   const [classSaving, setClassSaving] = useState(false)
@@ -69,9 +81,9 @@ export default function BatchesPage() {
     e.preventDefault()
     setBatchSaving(true)
     try {
-      await api.createBatch({ ...batchForm, grades: [3, 4, 5] })
+      await api.createBatch(batchForm)
       setBatchOpen(false)
-      setBatchForm({ name: "", year: new Date().getFullYear() })
+      setBatchForm({ name: "", year: new Date().getFullYear(), grades: [3, 4, 5] })
       fetchData()
     } finally {
       setBatchSaving(false)
@@ -94,6 +106,12 @@ export default function BatchesPage() {
   }
 
   const recentClasses = classes.slice(0, 8)
+  const filteredBatches = filterGrade
+    ? batches.filter((b) => b.grades.includes(Number(filterGrade) as 3 | 4 | 5))
+    : batches
+  const filteredClasses = filterGrade
+    ? recentClasses.filter((c) => c.grade === Number(filterGrade))
+    : recentClasses
 
   return (
     <div className="space-y-4">
@@ -108,6 +126,13 @@ export default function BatchesPage() {
         }
       />
 
+      <Select className="w-full" value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)}>
+        <option value="">All Grades</option>
+        <option value="3">Grade 3</option>
+        <option value="4">Grade 4</option>
+        <option value="5">Grade 5</option>
+      </Select>
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -117,14 +142,14 @@ export default function BatchesPage() {
       ) : (
         <>
           <div className="space-y-3">
-            {batches.length === 0 && (
+            {filteredBatches.length === 0 && (
               <Card className="py-10">
                 <CardContent className="text-center text-sm text-muted-foreground">
                   No batches yet. Create your first batch to get started.
                 </CardContent>
               </Card>
             )}
-            {batches.map((b) => (
+            {filteredBatches.map((b) => (
               <Card
                 key={b._id}
                 className="cursor-pointer py-4 transition-colors active:bg-muted/50"
@@ -162,14 +187,14 @@ export default function BatchesPage() {
           </div>
 
           <div className="space-y-3">
-            {recentClasses.length === 0 && (
+            {filteredClasses.length === 0 && (
               <Card className="py-10">
                 <CardContent className="text-center text-sm text-muted-foreground">
                   No class sessions scheduled yet.
                 </CardContent>
               </Card>
             )}
-            {recentClasses.map((c) => (
+            {filteredClasses.map((c) => (
               <Card
                 key={c._id}
                 className="cursor-pointer py-4 transition-colors active:bg-muted/50"
@@ -228,6 +253,23 @@ export default function BatchesPage() {
                 }
               />
             </div>
+            <div className="space-y-1.5">
+              <Label>Grades Covered</Label>
+              <div className="flex items-center gap-1.5">
+                {[3, 4, 5].map((g) => (
+                  <Badge
+                    key={g}
+                    variant={batchForm.grades.includes(g) ? "default" : "outline"}
+                    role="button"
+                    tabIndex={0}
+                    className="cursor-pointer px-3 py-1 text-sm"
+                    onClick={() => toggleBatchGrade(g)}
+                  >
+                    Grade {g}
+                  </Badge>
+                ))}
+              </div>
+            </div>
             <DialogFooter>
               <Button
                 type="button"
@@ -236,7 +278,10 @@ export default function BatchesPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={batchSaving}>
+              <Button
+                type="submit"
+                disabled={batchSaving || batchForm.grades.length === 0}
+              >
                 {batchSaving ? <Spinner /> : "Create Batch"}
               </Button>
             </DialogFooter>

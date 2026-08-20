@@ -5,10 +5,17 @@ import {
   CalendarCheckIcon,
   GraduationCapIcon,
   ListChecksIcon,
+  PencilIcon,
+  QrCodeIcon,
+  Trash2Icon,
 } from "lucide-react"
 
-import { api, type StudentDetail } from "@/lib/api"
+import { api, type Batch, ApiError, type LeaveRecord, type StudentDetail } from "@/lib/api"
+import { useSession } from "@/lib/session"
+import { isValidPhoneLocal, PHONE_HINT } from "@/lib/phone"
 import { StatCard } from "@/components/stat-card"
+import { StudentIdDialog } from "@/components/student-id-dialog"
+import { ConfirmDialog, AlertModal } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,18 +24,40 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { role } = useSession()
   const [data, setData] = useState<StudentDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showIdCard, setShowIdCard] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [leaveHistory, setLeaveHistory] = useState<LeaveRecord[]>([])
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [blockedDeleteMessage, setBlockedDeleteMessage] = useState<string | null>(null)
+  const [alertMessage, setAlertMessage] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!id) return
     try {
       setData(await api.studentDetail(id))
+      const lh = await api.leaveHistory(id)
+      setLeaveHistory(lh.leaves)
     } catch (e) {
       console.error(e)
     } finally {
@@ -39,6 +68,27 @@ export default function StudentDetailPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  const performDelete = async (force = false) => {
+    if (!id) return
+    try {
+      await api.deleteStudent(id, force)
+      navigate("/students", { replace: true })
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        setBlockedDeleteMessage(e.message)
+      } else {
+        setAlertMessage(e instanceof Error ? e.message : "Failed to delete")
+      }
+    }
+  }
+
+  const deactivateInstead = async () => {
+    if (!id) return
+    setBlockedDeleteMessage(null)
+    await api.updateStudent(id, { isActive: false })
+    fetchData()
+  }
 
   if (loading) {
     return (
@@ -66,7 +116,15 @@ export default function StudentDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{student.name}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-lg">{student.name}</CardTitle>
+            {student.isActive === false ? (
+              <Badge variant="destructive">Inactive</Badge>
+            ) : (
+              <Badge variant="secondary">Active</Badge>
+            )}
+          </div>
+          <p className="font-mono text-xs text-muted-foreground">{student.registrationNumber ?? "No registration number"}</p>
           <div className="flex items-center gap-1.5 pt-1">
             <Badge variant="secondary">Grade {student.grade}</Badge>
             <Badge variant="outline">
@@ -89,6 +147,33 @@ export default function StudentDetailPage() {
             <span className="text-muted-foreground">ID:</span>{" "}
             <span className="font-mono text-xs">{student.qrCode}</span>
           </p>
+          <p>
+            <span className="text-muted-foreground">Registered:</span>{" "}
+            {student.registrationDate ? new Date(student.registrationDate).toLocaleDateString() : "—"}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Total Leaves:</span>{" "}
+            <span className="tabular">{student.totalLeaves ?? 0}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Current Leave Cycle:</span>{" "}
+            <span className={`tabular font-bold ${(student.currentLeaveCycle ?? 0) >= 3 ? "text-destructive" : (student.currentLeaveCycle ?? 0) >= 2 ? "text-warning" : ""}`}>
+              {student.currentLeaveCycle ?? 0}
+            </span>
+          </p>
+          <div className="flex items-center gap-2 pt-2">
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowIdCard(true)}>
+              <QrCodeIcon data-icon="inline-start" />
+              ID Card
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditOpen(true)}>
+              <PencilIcon data-icon="inline-start" />
+              Edit
+            </Button>
+            <Button variant="outline" size="icon" aria-label="Delete student" onClick={() => setConfirmDeleteOpen(true)}>
+              <Trash2Icon className="text-destructive" />
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -209,6 +294,225 @@ export default function StudentDetailPage() {
           ))}
         </CardContent>
       </Card>
+
+      {leaveHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Leave History</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {leaveHistory.map((l) => (
+              <div key={l._id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
+                <div>
+                  <p className="font-medium">
+                    {typeof l.classId === "object" && l.classId ? (l.classId.subject ?? "Session") : "Session"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{new Date(l.date).toLocaleDateString()}</p>
+                </div>
+                <Badge variant="secondary">Cycle {l.leaveCycleAtRecord ?? "—"}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <StudentIdDialog student={showIdCard ? student : null} onClose={() => setShowIdCard(false)} />
+
+      {editOpen && (
+        <EditStudentDialog
+          student={student}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false)
+            fetchData()
+          }}
+        />
+      )}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => {
+          setConfirmDeleteOpen(false)
+          performDelete(false)
+        }}
+        title="Delete this student?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        tone="danger"
+      />
+
+      <Dialog open={blockedDeleteMessage !== null} onOpenChange={(o) => !o && setBlockedDeleteMessage(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cannot delete this student</DialogTitle>
+            <DialogDescription>{blockedDeleteMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button className="w-full" onClick={deactivateInstead}>
+              Deactivate Instead
+            </Button>
+            {role === "admin" && (
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => {
+                  setBlockedDeleteMessage(null)
+                  performDelete(true)
+                }}
+              >
+                Force Delete Everything (Admin Only)
+              </Button>
+            )}
+            <Button variant="outline" className="w-full" onClick={() => setBlockedDeleteMessage(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertModal open={alertMessage !== null} onClose={() => setAlertMessage(null)} title="Something went wrong" description={alertMessage ?? undefined} tone="danger" />
     </div>
+  )
+}
+
+function EditStudentDialog({
+  student,
+  onClose,
+  onSaved,
+}: {
+  student: StudentDetail["student"]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [batches, setBatches] = useState<Batch[]>([])
+  const [form, setForm] = useState({
+    name: student.name,
+    guardianName: student.guardianName,
+    guardianPhone: student.guardianPhone,
+    grade: String(student.grade),
+    dateOfBirth: student.dateOfBirth ? student.dateOfBirth.slice(0, 10) : "",
+    batchId: typeof student.batchId === "object" && student.batchId ? student.batchId._id : "",
+    isActive: student.isActive !== false,
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.batches().then((d) => setBatches(d.batches))
+  }, [])
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!isValidPhoneLocal(form.guardianPhone)) {
+      setPhoneError(PHONE_HINT)
+      return
+    }
+    setPhoneError(null)
+    setSaving(true)
+    try {
+      await api.updateStudent(student._id, { ...form, grade: Number(form.grade) })
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Student</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={save} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="editName">Full Name</Label>
+            <Input id="editName" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="editGuardianName">Guardian Name</Label>
+            <Input
+              id="editGuardianName"
+              required
+              value={form.guardianName}
+              onChange={(e) => setForm({ ...form, guardianName: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="editGuardianPhone">Guardian Phone</Label>
+            <Input
+              id="editGuardianPhone"
+              type="tel"
+              required
+              aria-invalid={!!phoneError}
+              placeholder="e.g. 0701212234"
+              value={form.guardianPhone}
+              onChange={(e) => {
+                setForm({ ...form, guardianPhone: e.target.value })
+                if (phoneError) setPhoneError(null)
+              }}
+              onBlur={(e) =>
+                setPhoneError(e.target.value && !isValidPhoneLocal(e.target.value) ? PHONE_HINT : null)
+              }
+            />
+            {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editBatch">Batch</Label>
+              <Select id="editBatch" value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })}>
+                <option value="">No Batch</option>
+                {batches.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editGrade">Grade</Label>
+              <Select id="editGrade" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })}>
+                <option value="3">Grade 3</option>
+                <option value="4">Grade 4</option>
+                <option value="5">Grade 5</option>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="editDob">Date of Birth</Label>
+            <Input
+              id="editDob"
+              type="date"
+              required
+              max={new Date().toISOString().slice(0, 10)}
+              value={form.dateOfBirth}
+              onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-xl border p-3">
+            <Label htmlFor="editActive" className="cursor-pointer">
+              Active in the programme
+            </Label>
+            <Switch
+              id="editActive"
+              checked={form.isActive}
+              onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? <Spinner /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+      <AlertModal open={error !== null} onClose={() => setError(null)} title="Failed to save" description={error ?? undefined} tone="danger" />
+    </Dialog>
   )
 }

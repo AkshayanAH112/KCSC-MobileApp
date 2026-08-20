@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import QRCode from "qrcode"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { PlusIcon, QrCodeIcon, SearchIcon } from "lucide-react"
 
 import { api, type Batch, type Student } from "@/lib/api"
+import { isValidPhoneLocal, PHONE_HINT } from "@/lib/phone"
 import { PageHeader } from "@/components/page-header"
+import { StudentIdDialog } from "@/components/student-id-dialog"
+import { AlertModal } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -33,18 +35,21 @@ const emptyForm = {
 
 export default function StudentsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [students, setStudents] = useState<Student[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [filterBatch, setFilterBatch] = useState("")
+  const [filterGrade, setFilterGrade] = useState(searchParams.get("grade") ?? "")
 
   const [registerOpen, setRegisterOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
-  const [qrDataUrl, setQrDataUrl] = useState("")
 
   const fetchData = useCallback(async () => {
     try {
@@ -69,6 +74,11 @@ export default function StudentsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isValidPhoneLocal(form.guardianPhone)) {
+      setPhoneError(PHONE_HINT)
+      return
+    }
+    setPhoneError(null)
     setSaving(true)
     try {
       await api.createStudent({ ...form, grade: Number(form.grade) })
@@ -76,23 +86,18 @@ export default function StudentsPage() {
       setForm({ ...emptyForm, batchId: batches[0]?._id ?? "" })
       fetchData()
     } catch (err) {
-      console.error(err)
+      setFormError(err instanceof Error ? err.message : "Failed to register student")
     } finally {
       setSaving(false)
     }
-  }
-
-  const showQr = async (student: Student) => {
-    const url = await QRCode.toDataURL(student.qrCode, { margin: 1, scale: 10 })
-    setQrDataUrl(url)
-    setQrStudent(student)
   }
 
   const filtered = students.filter(
     (s) =>
       s.name.toLowerCase().includes(search.toLowerCase()) &&
       (filterBatch === "" ||
-        (typeof s.batchId === "object" && s.batchId?._id === filterBatch))
+        (typeof s.batchId === "object" && s.batchId?._id === filterBatch)) &&
+      (filterGrade === "" || String(s.grade) === filterGrade)
   )
 
   return (
@@ -118,6 +123,16 @@ export default function StudentsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <Select
+          className="w-28"
+          value={filterGrade}
+          onChange={(e) => setFilterGrade(e.target.value)}
+        >
+          <option value="">All Grades</option>
+          <option value="3">Grade 3</option>
+          <option value="4">Grade 4</option>
+          <option value="5">Grade 5</option>
+        </Select>
         <Select
           className="w-36"
           value={filterBatch}
@@ -156,9 +171,12 @@ export default function StudentsPage() {
             >
               <CardContent className="flex items-center gap-3 px-4">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{s.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {s.guardianName} · {s.guardianPhone}
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate font-semibold">{s.name}</p>
+                    {s.isActive === false && <Badge variant="destructive">Inactive</Badge>}
+                  </div>
+                  <p className="truncate text-xs font-mono text-muted-foreground">
+                    {s.registrationNumber ?? "—"}
                   </p>
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <Badge variant="secondary">Grade {s.grade}</Badge>
@@ -167,6 +185,11 @@ export default function StudentsPage() {
                         ? s.batchId.name
                         : "No Batch"}
                     </Badge>
+                    {(s.currentLeaveCycle ?? 0) >= 2 && (
+                      <Badge variant={s.currentLeaveCycle! >= 3 ? "destructive" : "secondary"}>
+                        Cycle {s.currentLeaveCycle}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <Button
@@ -175,7 +198,7 @@ export default function StudentsPage() {
                   aria-label="Show QR ID"
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation()
-                    showQr(s)
+                    setQrStudent(s)
                   }}
                 >
                   <QrCodeIcon />
@@ -217,16 +240,23 @@ export default function StudentsPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="guardianPhone">Guardian Phone (SMS)</Label>
+              <Label htmlFor="guardianPhone">Guardian Phone</Label>
               <Input
                 id="guardianPhone"
+                type="tel"
                 required
-                placeholder="e.g. +94771234567"
+                aria-invalid={!!phoneError}
+                placeholder="e.g. 0701212234"
                 value={form.guardianPhone}
-                onChange={(e) =>
+                onChange={(e) => {
                   setForm({ ...form, guardianPhone: e.target.value })
+                  if (phoneError) setPhoneError(null)
+                }}
+                onBlur={(e) =>
+                  setPhoneError(e.target.value && !isValidPhoneLocal(e.target.value) ? PHONE_HINT : null)
                 }
               />
+              {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -263,6 +293,7 @@ export default function StudentsPage() {
                 id="dob"
                 type="date"
                 required
+                max={new Date().toISOString().slice(0, 10)}
                 value={form.dateOfBirth}
                 onChange={(e) =>
                   setForm({ ...form, dateOfBirth: e.target.value })
@@ -273,7 +304,7 @@ export default function StudentsPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setRegisterOpen(false)}
+                onClick={() => { setRegisterOpen(false); setPhoneError(null) }}
               >
                 Cancel
               </Button>
@@ -285,38 +316,8 @@ export default function StudentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* QR ID dialog */}
-      <Dialog
-        open={qrStudent !== null}
-        onOpenChange={(open) => !open && setQrStudent(null)}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Student ID</DialogTitle>
-            <DialogDescription>{qrStudent?.name}</DialogDescription>
-          </DialogHeader>
-          {qrStudent && (
-            <div className="flex flex-col items-center gap-3">
-              <img
-                src={qrDataUrl}
-                alt={`QR code for ${qrStudent.name}`}
-                className="size-48 rounded-lg border bg-white p-2"
-              />
-              <p className="font-mono text-xs text-muted-foreground">
-                {qrStudent.qrCode}
-              </p>
-              <div className="flex items-center gap-1.5">
-                <Badge variant="secondary">Grade {qrStudent.grade}</Badge>
-                <Badge variant="outline">
-                  {typeof qrStudent.batchId === "object" && qrStudent.batchId
-                    ? qrStudent.batchId.name
-                    : "No Batch"}
-                </Badge>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <StudentIdDialog student={qrStudent} onClose={() => setQrStudent(null)} />
+      <AlertModal open={formError !== null} onClose={() => setFormError(null)} title="Failed to register student" description={formError ?? undefined} tone="danger" />
     </div>
   )
 }

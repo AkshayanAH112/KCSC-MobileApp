@@ -252,6 +252,6 @@ Never encode pass/fail by color alone — pair with a label or icon (`chart` + `
 
 ## Sync obligation
 
-`Web app/app/globals.css` and `Mobile app/src/index.css` are **independent copies** of these tokens.
+`Web app/app/globals.css` and `Mobileapp/src/index.css` are **independent copies** of these tokens.
 There is no shared package. Any change to brand color, radius, spacing, or font must be applied to
 **both files in the same commit**, or the two apps drift.

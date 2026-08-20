@@ -6,9 +6,11 @@ import {
   GraduationCapIcon,
   Layers2Icon,
   QrCodeIcon,
+  ShieldAlertIcon,
   UserCogIcon,
   UserPlusIcon,
   UsersIcon,
+  UserXIcon,
 } from "lucide-react"
 
 import { api, type DashboardStats } from "@/lib/api"
@@ -77,6 +79,38 @@ export default function DashboardPage() {
           iconClassName="bg-gold/20 text-gold-foreground"
           loading={loading}
           to="/marks"
+        />
+        <StatCard
+          title="On Leave Today"
+          value={stats?.studentsOnLeaveToday}
+          icon={CalendarCheckIcon}
+          iconClassName="bg-warning/15 text-warning"
+          loading={loading}
+          to="/attendance/today"
+        />
+        <StatCard
+          title="At 2 Leaves"
+          value={stats?.studentsAtCycle2}
+          icon={AlertTriangleIcon}
+          iconClassName="bg-warning/15 text-warning"
+          loading={loading}
+          to="/notifications"
+        />
+        <StatCard
+          title="At 3 Leaves"
+          value={stats?.studentsAtCycle3}
+          icon={ShieldAlertIcon}
+          iconClassName="bg-destructive/10 text-destructive"
+          loading={loading}
+          to="/notifications"
+        />
+        <StatCard
+          title="Deactivated"
+          value={stats?.deactivatedStudents}
+          icon={UserXIcon}
+          iconClassName="bg-muted text-muted-foreground"
+          loading={loading}
+          to="/students"
         />
         {role === "admin" && (
           <StatCard

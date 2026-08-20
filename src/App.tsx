@@ -14,12 +14,15 @@ import StudentDetailPage from "@/pages/StudentDetail"
 import BatchesPage from "@/pages/Batches"
 import BatchDetailPage from "@/pages/BatchDetail"
 import ClassDetailPage from "@/pages/ClassDetail"
+import GradesPage from "@/pages/Grades"
 import ScannerPage from "@/pages/Scanner"
-import MarksPage from "@/pages/Marks"
+import ExamsPage from "@/pages/Exams"
+import ExamDetailPage from "@/pages/ExamDetail"
 import AttendanceTodayPage from "@/pages/AttendanceToday"
 import MembersPage from "@/pages/Members"
 import MemberDetailPage from "@/pages/MemberDetail"
 import AnalysisPage from "@/pages/Analysis"
+import NotificationsPage from "@/pages/Notifications"
 
 /** Decides the landing screen: dashboard (authed) → welcome (first run) → login. */
 function Launch() {
@@ -95,9 +98,12 @@ export default function App() {
         <Route path="/batches" element={<BatchesPage />} />
         <Route path="/batches/:id" element={<BatchDetailPage />} />
         <Route path="/classes/:id" element={<ClassDetailPage />} />
+        <Route path="/grades" element={<GradesPage />} />
         <Route path="/scanner" element={<ScannerPage />} />
-        <Route path="/marks" element={<MarksPage />} />
+        <Route path="/exams" element={<ExamsPage />} />
+        <Route path="/exams/:id" element={<ExamDetailPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/attendance/today" element={<AttendanceTodayPage />} />
         <Route element={<RequireAdmin />}>
           <Route path="/members" element={<MembersPage />} />

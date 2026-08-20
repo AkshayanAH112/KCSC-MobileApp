@@ -1,10 +1,12 @@
 import * as React from "react"
 import { NavLink, useLocation, useNavigate } from "react-router-dom"
 import {
+  BellIcon,
   CalendarCheckIcon,
   GraduationCapIcon,
   HomeIcon,
   Layers2Icon,
+  LayoutGridIcon,
   LineChartIcon,
   LogOutIcon,
   MenuIcon,
@@ -44,7 +46,9 @@ const adminTabs = [
 ]
 
 const moreLinks = [
-  { to: "/marks", label: "Marks & Reports", icon: GraduationCapIcon },
+  { to: "/exams", label: "Exams", icon: GraduationCapIcon },
+  { to: "/grades", label: "Grades", icon: LayoutGridIcon },
+  { to: "/notifications", label: "Notifications", icon: BellIcon },
   { to: "/analysis", label: "Analysis", icon: LineChartIcon },
   { to: "/attendance/today", label: "Today's Attendance", icon: CalendarCheckIcon },
 ]
@@ -60,7 +64,9 @@ const titles: Record<string, string> = {
   "/students": "Students",
   "/scanner": "Scanner",
   "/batches": "Batches",
-  "/marks": "Marks",
+  "/grades": "Grades",
+  "/exams": "Exams",
+  "/notifications": "Notifications",
   "/analysis": "Analysis",
   "/attendance/today": "Today's Attendance",
   "/members": "Club Members",
@@ -83,9 +89,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ? "Batch"
         : location.pathname.startsWith("/classes")
           ? "Class Session"
-          : location.pathname.startsWith("/members")
-            ? "Member"
-            : "KCSC")
+          : location.pathname.startsWith("/exams")
+            ? "Exam"
+            : location.pathname.startsWith("/members")
+              ? "Member"
+              : "KCSC")
 
   const handleLogout = async () => {
     await api.logout()

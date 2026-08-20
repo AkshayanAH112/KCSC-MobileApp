@@ -25,6 +25,10 @@ export interface Student {
   batchId?: Batch | string | null
   isActive: boolean
   createdAt: string
+  registrationNumber?: string
+  registrationDate?: string
+  totalLeaves?: number
+  currentLeaveCycle?: number
 }
 
 export interface ClassSession {
@@ -59,6 +63,24 @@ export interface MarksRecord {
   batchId?: Batch | string | null
 }
 
+export interface Exam {
+  _id: string
+  subject: string
+  grade: Grade
+  batchId: Batch | string
+  examDate: string
+  maxMarks: number
+  name?: string
+  resultsCount: number
+  averagePercent: number | null
+}
+
+export interface ExamRosterEntry {
+  student: Student
+  mark: MarksRecord | null
+  isRecorded: boolean
+}
+
 export interface AnalysisResult {
   studentId: string
   name: string
@@ -81,6 +103,35 @@ export interface DashboardStats {
   publishedPosts: number
   pendingMembers: number | null
   recentMarks: number
+  studentsOnLeaveToday: number
+  studentsAtCycle2: number
+  studentsAtCycle3: number
+  deactivatedStudents: number
+}
+
+export type NotificationType = "parent_warning" | "admin_critical"
+export type NotificationStatus = "pending" | "acknowledged" | "resolved"
+
+export interface AttendanceNotification {
+  _id: string
+  studentId: string
+  registrationNumber?: string
+  studentName: string
+  type: NotificationType
+  cycleGeneration: number
+  leaveCount: number
+  leaveDates: string[]
+  status: NotificationStatus
+  createdAt: string
+}
+
+export interface LeaveRecord {
+  _id: string
+  studentId: string
+  classId: ClassSession | string
+  date: string
+  leaveCycleAtRecord?: number
+  remarks?: string
 }
 
 export type MemberStatus = "pending" | "approved" | "rejected"
@@ -251,6 +302,40 @@ export const api = {
 
   studentDetail: (id: string) => request<StudentDetail>(`/api/students/${id}`),
 
+  updateStudent: (
+    id: string,
+    data: Partial<{
+      name: string
+      guardianName: string
+      guardianPhone: string
+      grade: number
+      dateOfBirth: string
+      batchId: string
+      isActive: boolean
+    }>
+  ) =>
+    request<{ student: Student }>(`/api/students/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteStudent: (id: string, force = false) =>
+    request<{ success: boolean }>(`/api/students/${id}${force ? "?force=true" : ""}`, { method: "DELETE" }),
+
+  leaveHistory: (id: string) =>
+    request<{ leaves: LeaveRecord[] }>(`/api/students/${id}/leave-history`),
+
+  notifications: (status?: NotificationStatus) =>
+    request<{ notifications: AttendanceNotification[] }>(
+      `/api/notifications${status ? `?status=${status}` : ""}`
+    ),
+
+  updateNotification: (id: string, status: NotificationStatus) =>
+    request<{ notification: AttendanceNotification }>(`/api/notifications/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
   lookupStudent: (qrCode: string, classId?: string) =>
     request<{
       student: Student
@@ -278,6 +363,15 @@ export const api = {
   batchDetail: (id: string) =>
     request<{ batch: Batch; classes: ClassSession[] }>(`/api/batches/${id}`),
 
+  updateBatch: (id: string, data: { name?: string; year?: number; grades?: number[] }) =>
+    request<{ batch: Batch }>(`/api/batches/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteBatch: (id: string) =>
+    request<{ success: boolean }>(`/api/batches/${id}`, { method: "DELETE" }),
+
   classes: (batchId?: string) =>
     request<{ classes: ClassSession[] }>(
       `/api/classes${batchId ? `?batchId=${batchId}` : ""}`
@@ -299,6 +393,18 @@ export const api = {
     request<{ classSession: ClassSession; roster: RosterEntry[] }>(
       `/api/classes/${id}`
     ),
+
+  updateClass: (
+    id: string,
+    data: { batchId?: string; grade?: number; date?: string; time?: string; subject?: string }
+  ) =>
+    request<{ classSession: ClassSession }>(`/api/classes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteClass: (id: string) =>
+    request<{ success: boolean }>(`/api/classes/${id}`, { method: "DELETE" }),
 
   saveAttendance: (data: {
     studentId: string
@@ -331,6 +437,47 @@ export const api = {
     }>
   ) =>
     request<{ success: boolean; count: number }>("/api/marks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  exams: (params?: { grade?: string; batchId?: string; subject?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params ?? {}).filter(([, v]) => v)
+    ).toString()
+    return request<{ exams: Exam[] }>(`/api/exams${qs ? `?${qs}` : ""}`)
+  },
+
+  createExam: (data: {
+    subject: string
+    grade: number
+    batchId: string
+    examDate: string
+    maxMarks: number
+    name?: string
+  }) =>
+    request<{ exam: Exam }>("/api/exams", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  examDetail: (id: string) =>
+    request<{ exam: Exam; roster: ExamRosterEntry[] }>(`/api/exams/${id}`),
+
+  updateExam: (
+    id: string,
+    data: Partial<{ subject: string; grade: number; batchId: string; examDate: string; maxMarks: number; name: string }>
+  ) =>
+    request<{ exam: Exam }>(`/api/exams/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteExam: (id: string) =>
+    request<{ success: boolean }>(`/api/exams/${id}`, { method: "DELETE" }),
+
+  saveExamMarks: (examId: string, data: { studentId: string; marks: number }) =>
+    request<{ success: boolean; count: number }>(`/api/exams/${examId}/marks`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

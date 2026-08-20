@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
+  ShareIcon,
   Trash2Icon,
   XCircleIcon,
 } from "lucide-react"
 
 import { api, type Member, type MemberStatus } from "@/lib/api"
+import { downloadCardImage } from "@/lib/card-capture"
+import { MembershipCardBack, MembershipCardFront } from "@/components/membership-card"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,6 +34,9 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [sharingFace, setSharingFace] = useState<"front" | "back" | null>(null)
+  const frontCardRef = useRef<HTMLDivElement>(null)
+  const backCardRef = useRef<HTMLDivElement>(null)
 
   const fetchData = useCallback(async () => {
     if (!id) return
@@ -62,9 +69,25 @@ export default function MemberDetailPage() {
     }
   }
 
+  const shareCard = async (face: "front" | "back") => {
+    if (!member) return
+    const node = face === "front" ? frontCardRef.current : backCardRef.current
+    if (!node) return
+    setSharingFace(face)
+    try {
+      await downloadCardImage(node, `${member.fullName.replace(/\s+/g, "_")}_Membership_Card_${face}.png`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to share card")
+    } finally {
+      setSharingFace(null)
+    }
+  }
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+
   const remove = async () => {
     if (!id || !member) return
-    if (!confirm(`Delete ${member.fullName}'s application?`)) return
+    setConfirmDeleteOpen(false)
     setSaving(true)
     try {
       await api.deleteMember(id)
@@ -186,13 +209,46 @@ export default function MemberDetailPage() {
             variant="ghost"
             className="w-full text-destructive hover:bg-destructive/10"
             disabled={saving}
-            onClick={remove}
+            onClick={() => setConfirmDeleteOpen(true)}
           >
             <Trash2Icon data-icon="inline-start" />
             Delete application
           </Button>
         </CardContent>
       </Card>
+
+      {member.status === "approved" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Membership Card</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4 px-4 pb-4">
+            <div className="max-w-full overflow-x-auto">
+              <MembershipCardFront member={member} cardRef={frontCardRef} />
+            </div>
+            <Button className="w-full" variant="outline" disabled={sharingFace !== null} onClick={() => shareCard("front")}>
+              {sharingFace === "front" ? <Spinner /> : <><ShareIcon data-icon="inline-start" />Save / Share Front</>}
+            </Button>
+
+            <div className="max-w-full overflow-x-auto">
+              <MembershipCardBack cardRef={backCardRef} />
+            </div>
+            <Button className="w-full" variant="outline" disabled={sharingFace !== null} onClick={() => shareCard("back")}>
+              {sharingFace === "back" ? <Spinner /> : <><ShareIcon data-icon="inline-start" />Save / Share Back</>}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={remove}
+        title="Delete this application?"
+        description={member ? `Delete ${member.fullName}'s application? This cannot be undone.` : undefined}
+        confirmLabel="Delete"
+        tone="danger"
+      />
     </div>
   )
 }
