@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
+  FileTextIcon,
+  RefreshCwIcon,
   ShareIcon,
   Trash2Icon,
   XCircleIcon,
@@ -83,6 +85,23 @@ export default function MemberDetailPage() {
     }
   }
 
+  const [renewalSaving, setRenewalSaving] = useState(false)
+  const [renewalError, setRenewalError] = useState<string | null>(null)
+
+  const decideRenewal = async (action: "approve" | "reject") => {
+    if (!id) return
+    setRenewalSaving(true)
+    setRenewalError(null)
+    try {
+      const d = await api.decideRenewal(id, action)
+      setMember(d.member)
+    } catch (e) {
+      setRenewalError(e instanceof Error ? e.message : "Failed to update renewal")
+    } finally {
+      setRenewalSaving(false)
+    }
+  }
+
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   const remove = async () => {
@@ -113,18 +132,30 @@ export default function MemberDetailPage() {
 
   const rows: [string, string | undefined][] = [
     ["Phone", member.phone],
+    ["WhatsApp", member.whatsapp],
     ["Email", member.email],
     ["NIC", member.nic],
+    ["Age", member.age?.toString()],
+    ["Gender", member.gender],
     ["Member type", member.memberType],
     [
       "Date of birth",
       member.dateOfBirth ? new Date(member.dateOfBirth).toLocaleDateString() : undefined,
     ],
+    [
+      "Requested joining date",
+      member.dateOfJoining ? new Date(member.dateOfJoining).toLocaleDateString() : undefined,
+    ],
+    ["Previous club", member.previousClub],
     ["Address", member.address],
     ["Guardian", member.guardianName],
     ["Guardian phone", member.guardianPhone],
     ["Interest", member.interest],
     ["Member ID", member.memberCode],
+    ["Occupation", member.job],
+    ["Annual fee", member.annualFee != null ? `LKR ${member.annualFee}` : undefined],
+    ["Valid from", member.validFrom ? new Date(member.validFrom).toLocaleDateString() : undefined],
+    ["Valid until", member.validUntil ? new Date(member.validUntil).toLocaleDateString() : undefined],
   ]
 
   return (
@@ -136,6 +167,58 @@ export default function MemberDetailPage() {
 
       {error && (
         <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+      )}
+
+      {member.renewalStatus === "pending" && (
+        <Card className="border-warning/30 bg-warning/10">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <RefreshCwIcon className="text-warning" size={18} />
+              <CardTitle className="text-base">Pending renewal</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {renewalError && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{renewalError}</div>
+            )}
+            <p>
+              <span className="text-muted-foreground">Occupation:</span> {member.renewalJob ?? "—"}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Fee:</span>{" "}
+              {member.renewalAnnualFee != null ? `LKR ${member.renewalAnnualFee}` : "—"}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Submitted:</span>{" "}
+              {member.renewalSubmittedAt ? new Date(member.renewalSubmittedAt).toLocaleDateString() : "—"}
+            </p>
+            {member.renewalPaymentSlipUrl && (
+              <a
+                href={member.renewalPaymentSlipUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-primary underline"
+              >
+                <FileTextIcon size={14} /> View renewal payment slip
+              </a>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button className="flex-1" disabled={renewalSaving} onClick={() => decideRenewal("approve")}>
+                <CheckCircle2Icon data-icon="inline-start" />
+                Approve renewal
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 text-destructive hover:bg-destructive/10"
+                disabled={renewalSaving}
+                onClick={() => decideRenewal("reject")}
+              >
+                <XCircleIcon data-icon="inline-start" />
+                Reject
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <Card>
@@ -172,6 +255,18 @@ export default function MemberDetailPage() {
           {member.message && (
             <p className="pt-1">
               <span className="text-muted-foreground">Message:</span> {member.message}
+            </p>
+          )}
+          {member.paymentSlipUrl && (
+            <p className="pt-1">
+              <a
+                href={member.paymentSlipUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-primary underline"
+              >
+                <FileTextIcon size={14} /> View uploaded payment slip
+              </a>
             </p>
           )}
         </CardContent>

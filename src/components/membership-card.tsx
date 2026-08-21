@@ -1,27 +1,34 @@
-import type { Ref } from "react"
+import type { CSSProperties, Ref } from "react"
 
 /**
- * Mirrors Web app/components/membership-card.tsx field-for-field. CSS-drawn
- * (brand colors/logo, not a template image) — kept template-free deliberately,
- * same reasoning as the Web version: no coordinate-hunting against a source
- * image, and flexbox/grid layout is what html2canvas-pro renders most reliably.
+ * Mirrors Web app/components/membership-card.tsx field-for-field, including
+ * the underlying artwork (public/membership-card/front.webp, back.webp,
+ * copied from the Web app's copy of the club's supplied card design). Every
+ * field below is an absolutely-positioned overlay whose percentages were
+ * measured against that artwork on the Web side — kept identical here so the
+ * two apps produce the same card. The container's aspect ratio is locked to
+ * the template image's own ratio, not a standard ID-1 card.
  */
 
 export type MembershipCardMember = {
   fullName: string
   memberCode?: string
   nic?: string
+  dateOfBirth?: string
   reviewedAt?: string
+  validFrom?: string
+  validUntil?: string
   photoUrl?: string
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <p className="truncate text-[8px] text-gray-700">
-      <span className="font-bold text-primary">{label}:</span> {value}
-    </p>
-  )
+function formatDate(value?: string) {
+  if (!value) return "—"
+  return new Date(value).toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "numeric" })
 }
+
+const CARD_WIDTH_MM = 90
+const FRONT_RATIO = 2953 / 2195
+const BACK_RATIO = 2955 / 2183
 
 export function MembershipCardFront({
   member,
@@ -30,62 +37,72 @@ export function MembershipCardFront({
   member: MembershipCardMember
   cardRef?: Ref<HTMLDivElement>
 }) {
-  const joiningDate = member.reviewedAt
-    ? new Date(member.reviewedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-    : "—"
-
   return (
     <div
       ref={cardRef}
-      className="relative flex h-[53.98mm] w-[85.6mm] shrink-0 flex-col gap-2 overflow-hidden rounded-xl border-[3px] border-primary bg-white p-3"
+      className="relative shrink-0 overflow-hidden rounded-xl"
+      style={{ width: `${CARD_WIDTH_MM}mm`, aspectRatio: FRONT_RATIO }}
     >
-      <div className="absolute top-0 right-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-primary/5" />
-      <div className="absolute bottom-0 left-0 h-16 w-16 -translate-x-4 translate-y-8 rounded-full bg-primary/5" />
+      <img src="/membership-card/front.webp" alt="" className="absolute inset-0 h-full w-full object-cover" />
 
-      <div className="z-10 flex items-center gap-2">
-        <img src="/logo.png" alt="" className="h-[30px] w-[30px] shrink-0 object-contain" />
-        <div className="min-w-0">
-          <div className="text-[11px] leading-tight font-bold text-primary">Kallar Central Sports Club</div>
-          <div className="text-[7px] font-bold tracking-wide text-gold-foreground uppercase">Membership Card</div>
-        </div>
+      {/* Photo — inside the gold-bordered box baked into the template */}
+      <div
+        className="absolute overflow-hidden rounded-[8%] bg-[#f6f1ee]"
+        style={{ left: "8.6%", top: "37.6%", width: "26.7%", height: "44.6%" }}
+      >
+        {member.photoUrl && (
+          <img src={member.photoUrl} alt="" className="h-full w-full object-cover" />
+        )}
       </div>
-      <div className="z-10 h-px w-full bg-border" />
 
-      <div className="z-10 flex flex-1 gap-3">
-        <div className="h-full w-[22mm] shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
-          {member.photoUrl ? (
-            <img src={member.photoUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full bg-[#f6f1ee]" />
-          )}
-        </div>
+      {/* Value boxes — Membership ID / Name / NIC / DOB */}
+      <div
+        className="absolute flex items-center overflow-hidden px-[2%] font-bold text-gray-900"
+        style={{ left: "42.6%", top: "41.0%", width: "33.7%", height: "6.15%", fontSize: "9px" }}
+      >
+        <span className="truncate">{member.memberCode ?? "—"}</span>
+      </div>
+      <div
+        className="absolute flex items-center overflow-hidden px-[2%] font-bold uppercase text-gray-900"
+        style={{ left: "42.6%", top: "54.7%", width: "33.7%", height: "5.47%", fontSize: "7px" }}
+      >
+        <span className="truncate">{member.fullName}</span>
+      </div>
+      <div
+        className="absolute flex items-center overflow-hidden px-[2%] font-bold text-gray-900"
+        style={{ left: "42.6%", top: "67.0%", width: "33.7%", height: "5.47%", fontSize: "8.5px" }}
+      >
+        <span className="truncate">{member.nic ?? "—"}</span>
+      </div>
+      <div
+        className="absolute flex items-center overflow-hidden px-[2%] font-bold text-gray-900"
+        style={{ left: "42.6%", top: "79.3%", width: "33.7%", height: "5.47%", fontSize: "8.5px" }}
+      >
+        <span className="truncate">{formatDate(member.dateOfBirth)}</span>
+      </div>
 
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-          <p className="truncate text-[12px] leading-tight font-bold text-gray-900 uppercase">{member.fullName}</p>
-          <Row label="Member ID" value={member.memberCode ?? "—"} />
-          <Row label="NIC" value={member.nic ?? "—"} />
-          <Row label="Joined" value={joiningDate} />
-        </div>
+      {/* Valid From / Valid Thru — small value line under each baked-in label */}
+      <div className="absolute font-bold text-primary" style={{ left: "13.5%", bottom: "1.8%", fontSize: "6.5px" }}>
+        {formatDate(member.validFrom ?? member.reviewedAt)}
+      </div>
+      <div className="absolute font-bold text-primary" style={{ left: "37%", bottom: "1.8%", fontSize: "6.5px" }}>
+        {formatDate(member.validUntil)}
       </div>
     </div>
   )
 }
 
-function SignatureBlock({ label, file }: { label: string; file: string }) {
+function SignatureOverlay({ file, style }: { file: string; style: CSSProperties }) {
   return (
-    <div className="flex w-[26mm] flex-col items-center">
-      <div className="flex h-[9mm] w-full items-end justify-center overflow-hidden">
-        <img
-          src={file}
-          alt={`${label}'s signature`}
-          className="max-h-full max-w-full object-contain"
-          onError={(e) => {
-            e.currentTarget.style.display = "none"
-          }}
-        />
-      </div>
-      <div className="mt-1 w-full border-t border-gray-400" />
-      <span className="mt-1 text-[8px] font-bold text-primary">{label}</span>
+    <div className="absolute flex items-end justify-center overflow-hidden" style={style}>
+      <img
+        src={file}
+        alt=""
+        className="max-h-full max-w-full object-contain"
+        onError={(e) => {
+          e.currentTarget.style.display = "none"
+        }}
+      />
     </div>
   )
 }
@@ -94,22 +111,13 @@ export function MembershipCardBack({ cardRef }: { cardRef?: Ref<HTMLDivElement> 
   return (
     <div
       ref={cardRef}
-      className="relative flex h-[53.98mm] w-[85.6mm] shrink-0 flex-col gap-2 overflow-hidden rounded-xl border-[3px] border-primary bg-white p-3"
+      className="relative shrink-0 overflow-hidden rounded-xl"
+      style={{ width: `${CARD_WIDTH_MM}mm`, aspectRatio: BACK_RATIO }}
     >
-      <div className="absolute top-0 right-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-primary/5" />
+      <img src="/membership-card/back.webp" alt="" className="absolute inset-0 h-full w-full object-cover" />
 
-      <div className="z-10 text-[9px] font-bold tracking-wide text-primary uppercase">Terms &amp; Conditions</div>
-      <ul className="z-10 list-disc space-y-0.5 pl-3 text-[7px] leading-snug text-gray-700 marker:text-primary">
-        <li>This card is non-transferable.</li>
-        <li>Member must follow the rules and regulations of the club.</li>
-        <li>This card is the property of Kallar Central Sports Club.</li>
-        <li>Loss of card must be reported immediately.</li>
-      </ul>
-
-      <div className="z-10 mt-auto flex items-end justify-between gap-4">
-        <SignatureBlock label="President" file="/signature-president.png" />
-        <SignatureBlock label="Secretary" file="/signature-secretary.png" />
-      </div>
+      <SignatureOverlay file="/signature-president.png" style={{ left: "5.2%", top: "59%", width: "24.0%", height: "9.5%" }} />
+      <SignatureOverlay file="/signature-secretary.png" style={{ left: "57.8%", top: "59%", width: "21.8%", height: "9.5%" }} />
     </div>
   )
 }

@@ -142,8 +142,13 @@ export interface Member {
   _id: string
   fullName: string
   phone: string
+  whatsapp?: string
   email?: string
   dateOfBirth?: string
+  age?: number
+  gender?: string
+  dateOfJoining?: string
+  previousClub?: string
   address?: string
   nic?: string
   photoUrl?: string
@@ -153,6 +158,18 @@ export interface Member {
   guardianPhone?: string
   interest?: string
   message?: string
+  job?: string
+  jobCategory?: string
+  annualFee?: number
+  paymentSlipUrl?: string
+  validFrom?: string
+  validUntil?: string
+  renewalStatus?: "none" | "pending"
+  renewalJob?: string
+  renewalJobCategory?: string
+  renewalAnnualFee?: number
+  renewalPaymentSlipUrl?: string
+  renewalSubmittedAt?: string
   status: MemberStatus
   reviewNotes?: string
   reviewedBy?: { email: string } | null
@@ -279,6 +296,11 @@ export const api = {
 
   deleteMember: (id: string) =>
     request<{ success: boolean }>(`/api/members/${id}`, { method: "DELETE" }),
+
+  decideRenewal: (id: string, action: "approve" | "reject") =>
+    request<{ member: Member }>(`/api/members/${id}/renewal`, {
+      method: action === "approve" ? "POST" : "DELETE",
+    }),
 
   students: (params?: { grade?: string; batchId?: string }) => {
     const qs = new URLSearchParams(
