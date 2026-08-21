@@ -262,12 +262,8 @@ export default function StudentDetailPage() {
                   {new Date(m.examDate).toLocaleDateString()}
                 </p>
               </div>
-              <Badge
-                variant={
-                  m.marks / m.maxMarks >= 0.5 ? "secondary" : "destructive"
-                }
-              >
-                {m.marks}/{m.maxMarks}
+              <Badge variant={m.isAbsent ? "outline" : m.marks / m.maxMarks >= 0.5 ? "secondary" : "destructive"}>
+                {m.isAbsent ? "Absent" : `${m.marks}/${m.maxMarks}`}
               </Badge>
             </div>
           ))}
@@ -405,7 +401,6 @@ function EditStudentDialog({
     guardianName: student.guardianName,
     guardianPhone: student.guardianPhone,
     grade: String(student.grade),
-    dateOfBirth: student.dateOfBirth ? student.dateOfBirth.slice(0, 10) : "",
     batchId: typeof student.batchId === "object" && student.batchId ? student.batchId._id : "",
     isActive: student.isActive !== false,
   })
@@ -502,17 +497,6 @@ function EditStudentDialog({
                 <option value="5">Grade 5</option>
               </Select>
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="editDob">Date of Birth</Label>
-            <Input
-              id="editDob"
-              type="date"
-              required
-              max={new Date().toISOString().slice(0, 10)}
-              value={form.dateOfBirth}
-              onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-            />
           </div>
           <div className="flex items-center justify-between rounded-xl border p-3">
             <Label htmlFor="editActive" className="cursor-pointer">

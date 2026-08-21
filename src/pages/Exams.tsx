@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { GraduationCapIcon, PlusIcon } from "lucide-react"
 
-import { api, type Batch, type Exam } from "@/lib/api"
+import { api, type Batch, type Exam, type Student } from "@/lib/api"
 import { PageHeader } from "@/components/page-header"
 import { AlertModal } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -137,6 +137,19 @@ function NewExamDialog({
   const [examDate, setExamDate] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [students, setStudents] = useState<Student[]>([])
+
+  // A batch's declared `grades` (its intake coverage) can drift from which
+  // grade its actually-registered students are in now — e.g. after a year of
+  // promotions. Cross-checking against real students here, instead of trusting
+  // `batches`, is what warns before an exam gets created against an empty roster.
+  useEffect(() => {
+    api.students().then((d) => setStudents(d.students)).catch(() => {})
+  }, [])
+
+  const eligibleCount = students.filter(
+    (s) => String(s.grade) === grade && typeof s.batchId === "object" && s.batchId?._id === batchId
+  ).length
 
   const handleGradeChange = (g: string) => {
     setGrade(g)
@@ -222,6 +235,11 @@ function NewExamDialog({
               <Input id="examName" placeholder="e.g. Mid-term" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           </div>
+          {batchId && eligibleCount === 0 && (
+            <p className="rounded-lg bg-warning/15 px-3 py-2 text-xs font-medium text-warning">
+              No Grade {grade} students are registered in this batch yet — the exam will start with an empty roster.
+            </p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel

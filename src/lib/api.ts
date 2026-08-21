@@ -21,7 +21,6 @@ export interface Student {
   guardianName: string
   guardianPhone: string
   grade: Grade
-  dateOfBirth: string
   photoUrl?: string
   qrCode: string
   batchId?: Batch | string | null
@@ -57,6 +56,7 @@ export interface MarksRecord {
   examName?: string
   examDate: string
   marks: number
+  isAbsent?: boolean
   maxMarks: number
   grade: Grade
   // Not set on records saved before this field existed — a grade can have more
@@ -318,7 +318,6 @@ export const api = {
     guardianName: string
     guardianPhone: string
     grade: number
-    dateOfBirth: string
     batchId?: string
   }) =>
     request<{ student: Student }>("/api/students", {
@@ -337,7 +336,6 @@ export const api = {
       guardianName: string
       guardianPhone: string
       grade: number
-      dateOfBirth: string
       batchId: string
       isActive: boolean
     }>
@@ -504,7 +502,7 @@ export const api = {
   deleteExam: (id: string) =>
     request<{ success: boolean }>(`/api/exams/${id}`, { method: "DELETE" }),
 
-  saveExamMarks: (examId: string, data: { studentId: string; marks: number }) =>
+  saveExamMarks: (examId: string, data: { studentId: string; marks?: number; isAbsent?: boolean }) =>
     request<{ success: boolean; count: number }>(`/api/exams/${examId}/marks`, {
       method: "POST",
       body: JSON.stringify(data),

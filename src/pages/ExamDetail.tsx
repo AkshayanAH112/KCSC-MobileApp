@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 
 export default function ExamDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -53,6 +54,21 @@ export default function ExamDetailPage() {
     if (value === undefined || value === "") return
     try {
       await api.saveExamMarks(id, { studentId, marks: Number(value) })
+      setEntries((prev) => {
+        const next = { ...prev }
+        delete next[studentId]
+        return next
+      })
+      fetchData()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save")
+    }
+  }
+
+  const toggleAbsent = async (studentId: string, isAbsent: boolean) => {
+    if (!id) return
+    try {
+      await api.saveExamMarks(id, { studentId, isAbsent })
       setEntries((prev) => {
         const next = { ...prev }
         delete next[studentId]
@@ -134,27 +150,50 @@ export default function ExamDetailPage() {
       <div className="space-y-3">
         {filtered.length === 0 && (
           <Card className="py-10">
-            <CardContent className="text-center text-sm text-muted-foreground">No students found.</CardContent>
+            <CardContent className="text-center text-sm text-muted-foreground">
+              {roster.length === 0
+                ? `No Grade ${exam.grade} students are registered in ${typeof exam.batchId === "object" ? exam.batchId.name : "this batch"} yet.`
+                : "No students match your search."}
+            </CardContent>
           </Card>
         )}
-        {filtered.map((r) => (
+        {filtered.map((r) => {
+          const isAbsent = Boolean(r.mark?.isAbsent)
+          return (
           <Card key={r.student._id} className="py-4">
             <CardContent className="flex items-center justify-between gap-3 px-4">
               <p className="min-w-0 flex-1 truncate font-semibold">{r.student.name}</p>
-              <Input
-                type="number"
-                min={0}
-                max={exam.maxMarks}
-                inputMode="numeric"
-                placeholder={r.mark ? String(r.mark.marks) : "—"}
-                className="w-20 text-center"
-                value={entries[r.student._id] ?? ""}
-                onChange={(e) => setEntries({ ...entries, [r.student._id]: e.target.value })}
-                onBlur={() => saveOne(r.student._id)}
-              />
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor={`absent-${r.student._id}`} className="text-xs text-muted-foreground">
+                  Absent
+                </Label>
+                <Switch
+                  id={`absent-${r.student._id}`}
+                  checked={isAbsent}
+                  onCheckedChange={(checked) => toggleAbsent(r.student._id, checked)}
+                />
+              </div>
+              {isAbsent ? (
+                <span className="w-20 rounded-lg border border-dashed py-2 text-center text-xs font-bold uppercase text-muted-foreground">
+                  Absent
+                </span>
+              ) : (
+                <Input
+                  type="number"
+                  min={0}
+                  max={exam.maxMarks}
+                  inputMode="numeric"
+                  placeholder={r.mark ? String(r.mark.marks) : "—"}
+                  className="w-20 text-center"
+                  value={entries[r.student._id] ?? ""}
+                  onChange={(e) => setEntries({ ...entries, [r.student._id]: e.target.value })}
+                  onBlur={() => saveOne(r.student._id)}
+                />
+              )}
             </CardContent>
           </Card>
-        ))}
+          )
+        })}
       </div>
 
       {editOpen && (
