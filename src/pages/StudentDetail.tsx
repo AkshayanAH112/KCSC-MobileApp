@@ -135,6 +135,18 @@ export default function StudentDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
+          {student.school && (
+            <p>
+              <span className="text-muted-foreground">School:</span>{" "}
+              {student.school}
+            </p>
+          )}
+          {student.address && (
+            <p>
+              <span className="text-muted-foreground">Address:</span>{" "}
+              {student.address}
+            </p>
+          )}
           <p>
             <span className="text-muted-foreground">Guardian:</span>{" "}
             {student.guardianName}
@@ -388,6 +400,8 @@ function EditStudentDialog({
   const [batches, setBatches] = useState<Batch[]>([])
   const [form, setForm] = useState({
     name: student.name,
+    school: student.school ?? "",
+    address: student.address ?? "",
     guardianName: student.guardianName,
     guardianPhone: student.guardianPhone,
     grade: String(student.grade),
@@ -431,6 +445,14 @@ function EditStudentDialog({
           <div className="space-y-1.5">
             <Label htmlFor="editName">Full Name</Label>
             <Input id="editName" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="editSchool">School</Label>
+            <Input id="editSchool" value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="editAddress">Address</Label>
+            <Input id="editAddress" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="editGuardianName">Guardian Name</Label>

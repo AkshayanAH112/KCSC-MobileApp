@@ -16,6 +16,8 @@ export interface Batch {
 export interface Student {
   _id: string
   name: string
+  school?: string
+  address?: string
   guardianName: string
   guardianPhone: string
   grade: Grade
@@ -289,6 +291,8 @@ export const api = {
 
   createStudent: (data: {
     name: string
+    school?: string
+    address?: string
     guardianName: string
     guardianPhone: string
     grade: number
@@ -306,6 +310,8 @@ export const api = {
     id: string,
     data: Partial<{
       name: string
+      school: string
+      address: string
       guardianName: string
       guardianPhone: string
       grade: number

@@ -26,6 +26,8 @@ import { Spinner } from "@/components/ui/spinner"
 
 const emptyForm = {
   name: "",
+  school: "",
+  address: "",
   guardianName: "",
   guardianPhone: "",
   batchId: "",
@@ -226,6 +228,22 @@ export default function StudentsPage() {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="school">School</Label>
+              <Input
+                id="school"
+                value={form.school}
+                onChange={(e) => setForm({ ...form, school: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
