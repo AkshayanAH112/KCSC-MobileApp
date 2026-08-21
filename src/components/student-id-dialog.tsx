@@ -15,15 +15,16 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 
-// The name box has a fixed budget (14% of card height) before it runs into the
-// batch ribbon baked into the template art below it — a long name at a single
-// fixed font size wraps to a second line that gets clipped mid-glyph and
-// visually collides with that ribbon. Shrinking the font for longer names
-// keeps two wrapped lines inside that budget instead. Mirrors the Web app.
+// The name+reg-number block has a fixed budget (14.5% of card height) before
+// it runs into the batch ribbon baked into the template art below it — a long
+// name at a single fixed font size wraps to a second line that, with the reg
+// number underneath, no longer fits and gets clipped/collides with that
+// ribbon. Shrinking the font for longer names keeps two wrapped lines plus
+// the reg number line inside that budget instead. Mirrors the Web app.
 function nameFontSize(name: string): number {
-  if (name.length <= 12) return 17
-  if (name.length <= 20) return 13
-  return 10
+  if (name.length <= 12) return 15
+  if (name.length <= 20) return 12
+  return 9
 }
 
 /**
@@ -79,12 +80,20 @@ export function StudentIdDialog({
             >
               <img src="/id-card-template.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
 
-              <h4
-                className="absolute font-bold text-[#14213D] uppercase leading-[1.05] line-clamp-2"
-                style={{ left: "8%", top: "38%", width: "45%", height: "14%", fontSize: `${nameFontSize(student.name)}px` }}
+              <div
+                className="absolute flex flex-col overflow-hidden"
+                style={{ left: "8%", top: "38%", width: "45%", height: "14.5%" }}
               >
-                {student.name}
-              </h4>
+                <h4
+                  className="font-bold text-[#14213D] uppercase leading-[1.05] line-clamp-2"
+                  style={{ fontSize: `${nameFontSize(student.name)}px` }}
+                >
+                  {student.name}
+                </h4>
+                <p className="mt-0.5 font-semibold tracking-wide text-gray-500" style={{ fontSize: "6px" }}>
+                  {student.registrationNumber ?? ""}
+                </p>
+              </div>
 
               <p
                 className="absolute flex items-center font-extrabold text-white uppercase tracking-wide"
