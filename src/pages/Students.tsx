@@ -32,7 +32,6 @@ const emptyForm = {
   guardianPhone: "",
   batchId: "",
   grade: "3",
-  dateOfBirth: "",
 }
 
 export default function StudentsPage() {
@@ -304,19 +303,6 @@ export default function StudentsPage() {
                   <option value="5">Grade 5</option>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="dob">Date of Birth</Label>
-              <Input
-                id="dob"
-                type="date"
-                required
-                max={new Date().toISOString().slice(0, 10)}
-                value={form.dateOfBirth}
-                onChange={(e) =>
-                  setForm({ ...form, dateOfBirth: e.target.value })
-                }
-              />
             </div>
             <DialogFooter>
               <Button
