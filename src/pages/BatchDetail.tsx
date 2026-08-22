@@ -99,12 +99,13 @@ export default function BatchDetailPage() {
               </Button>
             </div>
           </div>
-          <div className="flex gap-1.5 pt-1">
+          <div className="flex flex-wrap gap-1.5 pt-1">
             {batch.grades?.map((g) => (
               <Badge key={g} variant="secondary">
                 Grade {g}
               </Badge>
             ))}
+            {batch.autoPromote && <Badge variant="secondary">Auto-promotes</Badge>}
           </div>
         </CardHeader>
       </Card>
@@ -178,7 +179,7 @@ function EditBatchDialog({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [form, setForm] = useState({ name: batch.name, year: batch.year, grades: [...batch.grades] as number[] })
+  const [form, setForm] = useState({ name: batch.name, year: batch.year, grades: [...batch.grades] as number[], autoPromote: Boolean(batch.autoPromote) })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -240,6 +241,17 @@ function EditBatchDialog({
               ))}
             </div>
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.autoPromote}
+              onChange={(e) => setForm({ ...form, autoPromote: e.target.checked })}
+            />
+            Automatically promote students to the next grade each January
+            (same students continue into next year&apos;s grade in this
+            batch).
+          </label>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel

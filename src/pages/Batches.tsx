@@ -35,6 +35,7 @@ export default function BatchesPage() {
     name: "",
     year: new Date().getFullYear(),
     grades: [3, 4, 5] as number[],
+    autoPromote: false,
   })
 
   const toggleBatchGrade = (g: number) => {
@@ -83,7 +84,7 @@ export default function BatchesPage() {
     try {
       await api.createBatch(batchForm)
       setBatchOpen(false)
-      setBatchForm({ name: "", year: new Date().getFullYear(), grades: [3, 4, 5] })
+      setBatchForm({ name: "", year: new Date().getFullYear(), grades: [3, 4, 5], autoPromote: false })
       fetchData()
     } finally {
       setBatchSaving(false)
@@ -159,6 +160,11 @@ export default function BatchesPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{b.name}</p>
                     <p className="text-xs text-muted-foreground">{b.year}</p>
+                    {b.autoPromote && (
+                      <Badge variant="secondary" className="mt-1">
+                        Auto-promotes
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     {b.grades?.map((g) => (
@@ -270,6 +276,19 @@ export default function BatchesPage() {
                 ))}
               </div>
             </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={batchForm.autoPromote}
+                onChange={(e) =>
+                  setBatchForm({ ...batchForm, autoPromote: e.target.checked })
+                }
+              />
+              Automatically promote students to the next grade each January
+              (same students continue into next year&apos;s grade in this
+              batch).
+            </label>
             <DialogFooter>
               <Button
                 type="button"

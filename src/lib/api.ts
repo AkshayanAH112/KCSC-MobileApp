@@ -10,6 +10,7 @@ export interface Batch {
   name: string
   year: number
   grades: Grade[]
+  autoPromote?: boolean
   createdAt: string
 }
 
@@ -380,7 +381,7 @@ export const api = {
 
   batches: () => request<{ batches: Batch[] }>("/api/batches"),
 
-  createBatch: (data: { name: string; year: number; grades: number[] }) =>
+  createBatch: (data: { name: string; year: number; grades: number[]; autoPromote?: boolean }) =>
     request<{ batch: Batch }>("/api/batches", {
       method: "POST",
       body: JSON.stringify(data),
@@ -389,7 +390,7 @@ export const api = {
   batchDetail: (id: string) =>
     request<{ batch: Batch; classes: ClassSession[] }>(`/api/batches/${id}`),
 
-  updateBatch: (id: string, data: { name?: string; year?: number; grades?: number[] }) =>
+  updateBatch: (id: string, data: { name?: string; year?: number; grades?: number[]; autoPromote?: boolean }) =>
     request<{ batch: Batch }>(`/api/batches/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
