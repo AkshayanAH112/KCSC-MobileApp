@@ -298,6 +298,16 @@ export const api = {
   deleteMember: (id: string) =>
     request<{ success: boolean }>(`/api/members/${id}`, { method: "DELETE" }),
 
+  // Emails the member their card. The images are rendered and captured on the
+  // device (see lib/card-capture.ts) and posted as data URLs — the same
+  // contract the web console uses, so both consoles hit one server-side mailer
+  // rather than each growing their own.
+  sendCardEmail: (id: string, images: { front: string; back: string }) =>
+    request<{ success: boolean }>(`/api/members/${id}/send-card`, {
+      method: "POST",
+      body: JSON.stringify(images),
+    }),
+
   decideRenewal: (id: string, action: "approve" | "reject") =>
     request<{ member: Member }>(`/api/members/${id}/renewal`, {
       method: action === "approve" ? "POST" : "DELETE",

@@ -24,6 +24,16 @@ async function captureToCache(node: HTMLElement, filename: string): Promise<stri
 }
 
 /**
+ * Captures a DOM node to a PNG data URL, for posting to the server rather than
+ * sharing on-device — what the "Email card" action sends.
+ */
+export async function captureCardDataUrl(node: HTMLElement): Promise<string> {
+  const html2canvas = (await import("html2canvas-pro")).default
+  const canvas = await html2canvas(node, { scale: 4, useCORS: true, backgroundColor: "#ffffff" })
+  return canvas.toDataURL("image/png")
+}
+
+/**
  * Captures a DOM node to PNG and hands it to the native share sheet — the
  * standard pattern for "download" inside a Capacitor WebView, which has no
  * filesystem-visible Downloads folder of its own. Shared by the Student ID

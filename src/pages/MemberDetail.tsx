@@ -4,6 +4,7 @@ import {
   ArrowLeftIcon,
   CheckCircle2Icon,
   FileTextIcon,
+  MailIcon,
   RefreshCwIcon,
   ShareIcon,
   Trash2Icon,
@@ -11,7 +12,7 @@ import {
 } from "lucide-react"
 
 import { api, type Member, type MemberStatus } from "@/lib/api"
-import { downloadCardImage, downloadCardImages } from "@/lib/card-capture"
+import { captureCardDataUrl, downloadCardImage, downloadCardImages } from "@/lib/card-capture"
 import { MembershipCardBack, MembershipCardFront } from "@/components/membership-card"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -108,6 +109,42 @@ export default function MemberDetailPage() {
       setError(e instanceof Error ? e.message : "Failed to share card")
     } finally {
       setSharingFace(null)
+    }
+  }
+
+  const [emailState, setEmailState] = useState<{
+    sending: boolean
+    error: string | null
+    sentAt: number | null
+  }>({ sending: false, error: null, sentAt: null })
+
+  // Sends the card to the address on the member's record, server-side, rather
+  // than going through the share sheet — no address to type and no chance of
+  // it reaching the wrong person. Mirrors the web console's "Email card".
+  const emailCard = async () => {
+    if (!id || !member) return
+    if (!member.email) {
+      setEmailState({ sending: false, error: "This member has no email address on file.", sentAt: null })
+      return
+    }
+    const front = frontCardRef.current
+    const back = backCardRef.current
+    if (!front || !back) return
+
+    setEmailState({ sending: true, error: null, sentAt: null })
+    try {
+      // Sequential, not Promise.all: two scale-4 rasterisations at once is a
+      // lot to ask of a mid-range phone.
+      const frontImage = await captureCardDataUrl(front)
+      const backImage = await captureCardDataUrl(back)
+      await api.sendCardEmail(id, { front: frontImage, back: backImage })
+      setEmailState({ sending: false, error: null, sentAt: Date.now() })
+    } catch (e) {
+      setEmailState({
+        sending: false,
+        error: e instanceof Error ? e.message : "Failed to send email",
+        sentAt: null,
+      })
     }
   }
 
@@ -364,6 +401,33 @@ export default function MemberDetailPage() {
             <Button className="w-full" disabled={sharingFace !== null} onClick={shareBothCards}>
               {sharingFace === "both" ? <Spinner /> : <><ShareIcon data-icon="inline-start" />Save / Share Both Sides</>}
             </Button>
+
+            {/* Straight to the address on file, unlike the share sheet above,
+                which needs the address typed in by hand. Disabled outright when
+                there is no address — the server would reject it anyway. */}
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={emailState.sending || sharingFace !== null || !member.email}
+              onClick={emailCard}
+            >
+              {emailState.sending ? <Spinner /> : <><MailIcon data-icon="inline-start" />Email card to member</>}
+            </Button>
+
+            {!member.email && (
+              <p className="text-center text-xs text-muted-foreground">
+                No email address on file for this member.
+              </p>
+            )}
+            {emailState.error && (
+              <p className="w-full rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{emailState.error}</p>
+            )}
+            {emailState.sentAt && (
+              <p className="flex w-full items-center gap-2 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
+                <CheckCircle2Icon className="size-4 shrink-0" />
+                Card emailed to {member.email} at {new Date(emailState.sentAt).toLocaleTimeString()}.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
