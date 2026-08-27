@@ -6,6 +6,7 @@ import {
   GraduationCapIcon,
   Layers2Icon,
   QrCodeIcon,
+  ScanLineIcon,
   ShieldAlertIcon,
   UserCogIcon,
   UserPlusIcon,
@@ -19,9 +20,17 @@ import { PageHeader } from "@/components/page-header"
 import { StatCard } from "@/components/stat-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { QrScannerPanel } from "@/components/qr-scanner-panel"
 
 export default function DashboardPage() {
   const { role } = useSession()
+  const [scanOpen, setScanOpen] = useState(false)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -177,6 +186,31 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Quick scan. Sits above the 4rem tab bar plus the gesture-bar inset, so
+          it never covers a tab. Admins have no Scan tab at all (app-shell swaps
+          it for Club Members), which is who this saves the most taps for. */}
+      <button
+        type="button"
+        aria-label="Scan student QR code"
+        onClick={() => setScanOpen(true)}
+        className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95"
+      >
+        <ScanLineIcon className="size-6" />
+      </button>
+
+      {/* Base UI unmounts the sheet's contents on close, which is what stops
+          the camera — QrScannerPanel releases it in its effect cleanup. */}
+      <Sheet open={scanOpen} onOpenChange={setScanOpen}>
+        <SheetContent side="bottom" className="max-h-[90svh] overflow-y-auto pb-safe-offset-4">
+          <SheetHeader>
+            <SheetTitle>Scan student QR</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <QrScannerPanel onScanComplete={() => setScanOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

@@ -11,7 +11,7 @@ import {
 } from "lucide-react"
 
 import { api, type Member, type MemberStatus } from "@/lib/api"
-import { downloadCardImage } from "@/lib/card-capture"
+import { downloadCardImage, downloadCardImages } from "@/lib/card-capture"
 import { MembershipCardBack, MembershipCardFront } from "@/components/membership-card"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -36,7 +36,7 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [sharingFace, setSharingFace] = useState<"front" | "back" | null>(null)
+  const [sharingFace, setSharingFace] = useState<"front" | "back" | "both" | null>(null)
   const frontCardRef = useRef<HTMLDivElement>(null)
   const backCardRef = useRef<HTMLDivElement>(null)
 
@@ -71,13 +71,39 @@ export default function MemberDetailPage() {
     }
   }
 
+  const cardFilename = (face: string) =>
+    `${member?.fullName.replace(/\s+/g, "_")}_Membership_Card_${face}.png`
+
   const shareCard = async (face: "front" | "back") => {
     if (!member) return
     const node = face === "front" ? frontCardRef.current : backCardRef.current
     if (!node) return
     setSharingFace(face)
     try {
-      await downloadCardImage(node, `${member.fullName.replace(/\s+/g, "_")}_Membership_Card_${face}.png`)
+      await downloadCardImage(node, cardFilename(face))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to share card")
+    } finally {
+      setSharingFace(null)
+    }
+  }
+
+  // Both faces in one share sheet, so an approved member's card can be sent in
+  // a single message rather than as two separate sends.
+  const shareBothCards = async () => {
+    if (!member) return
+    const front = frontCardRef.current
+    const back = backCardRef.current
+    if (!front || !back) return
+    setSharingFace("both")
+    try {
+      await downloadCardImages(
+        [
+          { node: front, filename: cardFilename("front") },
+          { node: back, filename: cardFilename("back") },
+        ],
+        `${member.fullName} — Membership Card`
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to share card")
     } finally {
@@ -330,6 +356,13 @@ export default function MemberDetailPage() {
             </div>
             <Button className="w-full" variant="outline" disabled={sharingFace !== null} onClick={() => shareCard("back")}>
               {sharingFace === "back" ? <Spinner /> : <><ShareIcon data-icon="inline-start" />Save / Share Back</>}
+            </Button>
+
+            {/* Sending both faces is the usual case once a member is approved,
+                so it is the primary action; the single-face buttons above stay
+                for when only one is wanted. */}
+            <Button className="w-full" disabled={sharingFace !== null} onClick={shareBothCards}>
+              {sharingFace === "both" ? <Spinner /> : <><ShareIcon data-icon="inline-start" />Save / Share Both Sides</>}
             </Button>
           </CardContent>
         </Card>
