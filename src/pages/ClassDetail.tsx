@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
+  AlertTriangleIcon,
   ArrowLeftIcon,
   CheckCircle2Icon,
+  LockIcon,
+  LockOpenIcon,
   PencilIcon,
   SearchIcon,
   Trash2Icon,
@@ -37,6 +40,15 @@ export default function ClassDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // End-of-class register close. The preview is fetched before the dialog shows
+  // so the admin sees who is about to be marked absent — and who that pushes to
+  // a 2nd/3rd leave — before anything is written.
+  const [endPreview, setEndPreview] = useState<Awaited<
+    ReturnType<typeof api.endClassPreview>
+  > | null>(null)
+  const [endOpen, setEndOpen] = useState(false)
+  const [ending, setEnding] = useState(false)
+  const [endResult, setEndResult] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!id) return
@@ -74,6 +86,50 @@ export default function ClassDetailPage() {
     }
   }
 
+  const openEndDialog = async () => {
+    if (!id) return
+    setEndPreview(null)
+    setEndOpen(true)
+    try {
+      setEndPreview(await api.endClassPreview(id))
+    } catch (e) {
+      setEndOpen(false)
+      setError(e instanceof Error ? e.message : "Could not load preview")
+    }
+  }
+
+  const handleEndClass = async () => {
+    if (!id) return
+    setEnding(true)
+    try {
+      const d = await api.endClass(id)
+      setEndResult(
+        d.markedAbsentCount === 0
+          ? "Class ended. Everyone was already marked, so no leaves were added."
+          : `Class ended. ${d.markedAbsentCount} student${d.markedAbsentCount === 1 ? "" : "s"} marked absent` +
+            (d.warningsRaised > 0
+              ? `, raising ${d.warningsRaised} leave warning${d.warningsRaised === 1 ? "" : "s"}.`
+              : ".")
+      )
+      await fetchData()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not end class")
+    } finally {
+      setEnding(false)
+      setEndOpen(false)
+    }
+  }
+
+  const handleReopen = async () => {
+    if (!id) return
+    try {
+      await api.reopenClass(id)
+      await fetchData()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not reopen class")
+    }
+  }
+
   const handleDelete = async () => {
     if (!id || !classSession) return
     setConfirmDeleteOpen(false)
@@ -106,7 +162,11 @@ export default function ClassDetailPage() {
     r.student.name.toLowerCase().includes(search.toLowerCase())
   )
   const presentCount = roster.filter((r) => r.isPresent).length
-  const absentCount = roster.length - presentCount
+  // Explicitly marked absent, which is what actually becomes a leave — as
+  // opposed to never scanned at all, which is counted separately. Collapsing
+  // the two is what made the dashboard look self-contradictory.
+  const absentCount = roster.filter((r) => r.isRecorded && !r.isPresent).length
+  const unmarkedCount = roster.filter((r) => !r.isRecorded).length
 
   return (
     <div className="space-y-4">
@@ -135,7 +195,7 @@ export default function ClassDetailPage() {
             {new Date(classSession.date).toDateString()}
             {classSession.time ? ` at ${classSession.time}` : ""}
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className={cn("mt-3 grid gap-3", unmarkedCount > 0 ? "grid-cols-3" : "grid-cols-2")}>
             <div className="rounded-xl bg-muted p-3 text-center">
               <p className="text-xl font-bold">
                 {presentCount}
@@ -153,7 +213,30 @@ export default function ClassDetailPage() {
                 Absent
               </p>
             </div>
+            {unmarkedCount > 0 && (
+              <div className="rounded-xl bg-warning/10 p-3 text-center">
+                <p className="tabular text-xl font-bold text-warning">{unmarkedCount}</p>
+                <p className="text-xs font-medium text-warning uppercase">
+                  Unmarked
+                </p>
+              </div>
+            )}
           </div>
+
+          {/* Closing the register turns no-shows into real leaves. Without it
+              they only ever drag the attendance percentage down silently. */}
+          {classSession.endedAt ? (
+            <Button variant="outline" size="sm" className="mt-3 w-full" onClick={handleReopen}>
+              <LockOpenIcon data-icon="inline-start" />
+              Register closed — reopen
+            </Button>
+          ) : (
+            <Button size="sm" className="mt-3 w-full" onClick={openEndDialog}>
+              <LockIcon data-icon="inline-start" />
+              End class
+              {unmarkedCount > 0 ? ` — mark ${unmarkedCount} absent` : ""}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -229,6 +312,71 @@ export default function ClassDetailPage() {
         tone="danger"
       />
       <AlertModal open={error !== null} onClose={() => setError(null)} title="Failed to delete" description={error ?? undefined} tone="danger" />
+
+      <Dialog open={endOpen} onOpenChange={(open) => !open && setEndOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>End class?</DialogTitle>
+          </DialogHeader>
+          {!endPreview ? (
+            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+              <Spinner className="size-4" /> Checking who is unmarked...
+            </div>
+          ) : endPreview.unmarkedCount === 0 ? (
+            <p className="py-2 text-sm text-muted-foreground">
+              Everyone on this roster is already marked. Ending the class will not add any leaves.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                These {endPreview.unmarkedCount} student
+                {endPreview.unmarkedCount === 1 ? "" : "s"} will be marked absent, which counts as a leave:
+              </p>
+              <ul className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-muted/40 p-3 text-sm">
+                {endPreview.unmarked.map((s) => {
+                  const next = (s.currentLeaveCycle ?? 0) + 1
+                  return (
+                    <li key={s._id} className="flex items-center justify-between gap-2 py-0.5">
+                      <span>{s.name}</span>
+                      {(next === 2 || next === 3) && (
+                        <Badge variant="destructive" className="shrink-0">
+                          <AlertTriangleIcon />
+                          reaches {next}
+                        </Badge>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                2 leaves raises a parent warning, 3 an admin-critical alert. You can still correct
+                anyone afterwards by toggling them back to present.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEndOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEndClass} disabled={ending || !endPreview}>
+              {ending ? (
+                <Spinner />
+              ) : endPreview && endPreview.unmarkedCount > 0 ? (
+                `Mark ${endPreview.unmarkedCount} absent`
+              ) : (
+                "End class"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertModal
+        open={endResult !== null}
+        onClose={() => setEndResult(null)}
+        title="Register closed"
+        description={endResult ?? undefined}
+      />
     </div>
   )
 }

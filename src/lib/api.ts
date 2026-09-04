@@ -33,7 +33,10 @@ export interface Student {
   currentLeaveCycle?: number
 }
 
+/** Set once the register is closed via api.endClass; absent on older sessions,
+ *  which should read as "not ended". */
 export interface ClassSession {
+  endedAt?: string | null
   _id: string
   batchId: Batch | string
   grade: Grade
@@ -442,6 +445,34 @@ export const api = {
 
   deleteClass: (id: string) =>
     request<{ success: boolean }>(`/api/classes/${id}`, { method: "DELETE" }),
+
+  /** Who would be marked absent if the register were closed right now. */
+  endClassPreview: (id: string) =>
+    request<{
+      endedAt: string | null
+      unmarkedCount: number
+      unmarked: {
+        _id: string
+        name: string
+        registrationNumber?: string
+        currentLeaveCycle: number
+      }[]
+    }>(`/api/classes/${id}/end`),
+
+  /** Closes the register: every unmarked roster student is marked absent, which
+   *  counts as a leave exactly as marking them by hand would. Safe to repeat. */
+  endClass: (id: string) =>
+    request<{
+      success: boolean
+      endedAt: string
+      markedAbsentCount: number
+      warningsRaised: number
+    }>(`/api/classes/${id}/end`, { method: "POST" }),
+
+  /** Reopens a class ended by mistake. Leaves already recorded are not reversed —
+   *  toggle the student back to present on the roster to do that. */
+  reopenClass: (id: string) =>
+    request<{ success: boolean }>(`/api/classes/${id}/end`, { method: "DELETE" }),
 
   saveAttendance: (data: {
     studentId: string
