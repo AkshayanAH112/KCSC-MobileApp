@@ -79,12 +79,33 @@ export interface Exam {
   name?: string
   resultsCount: number
   averagePercent: number | null
+  // The gate on the public /results lookup. Optional: exams created before this
+  // field existed have no value stored, which reads the same as false here —
+  // unpublished, which is the safe direction to fail.
+  isPublished?: boolean
+  publishedAt?: string | null
 }
 
 export interface ExamRosterEntry {
   student: Student
   mark: MarksRecord | null
   isRecorded: boolean
+  /**
+   * Carried over from the class register for the exam's own date: this student
+   * was explicitly marked absent that day. A hint for the UI to pre-tick, never
+   * a saved mark — missing the class and missing the paper are different facts,
+   * so only staff can turn one into the other. The API stops suggesting once a
+   * mark exists, so an entered score is never second-guessed.
+   */
+  suggestedAbsent?: boolean
+}
+
+/** Summary of the register the absence hints came from. */
+export interface ExamAttendanceContext {
+  /** 0 means no class was held (or recorded) that day — nothing to carry over. */
+  sessionCount: number
+  date: string
+  suggestedAbsentCount: number
 }
 
 export interface AnalysisResult {
@@ -530,11 +551,23 @@ export const api = {
     }),
 
   examDetail: (id: string) =>
-    request<{ exam: Exam; roster: ExamRosterEntry[] }>(`/api/exams/${id}`),
+    request<{ exam: Exam; roster: ExamRosterEntry[]; attendance?: ExamAttendanceContext }>(
+      `/api/exams/${id}`
+    ),
 
   updateExam: (
     id: string,
-    data: Partial<{ subject: string; grade: number; batchId: string; examDate: string; maxMarks: number; name: string }>
+    data: Partial<{
+      subject: string
+      grade: number
+      batchId: string
+      examDate: string
+      maxMarks: number
+      name: string
+      /** Flips the gate on the public /results lookup. Nothing else changes —
+       *  the roster stays editable, and a later correction is live on save. */
+      isPublished: boolean
+    }>
   ) =>
     request<{ exam: Exam }>(`/api/exams/${id}`, {
       method: "PATCH",
@@ -548,6 +581,17 @@ export const api = {
     request<{ success: boolean; count: number }>(`/api/exams/${examId}/marks`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  /** Same route, array body — the one call that turns absence hints into marks.
+   *  See the POST handler: it upserts by {examId, studentId} either way. */
+  saveExamMarksBulk: (
+    examId: string,
+    entries: { studentId: string; marks?: number; isAbsent?: boolean }[]
+  ) =>
+    request<{ success: boolean; count: number }>(`/api/exams/${examId}/marks`, {
+      method: "POST",
+      body: JSON.stringify(entries),
     }),
 
   analysis: (params: { start: string; end: string; grade?: string; batchId?: string }) => {

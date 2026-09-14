@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { GraduationCapIcon, PlusIcon } from "lucide-react"
+import { GlobeIcon, GraduationCapIcon, PlusIcon } from "lucide-react"
 
 import { api, type Batch, type Exam, type Student } from "@/lib/api"
 import { PageHeader } from "@/components/page-header"
@@ -90,13 +90,21 @@ export default function ExamsPage() {
                   {typeof exam.batchId === "object" ? exam.batchId.name : ""} ·{" "}
                   {new Date(exam.examDate).toLocaleDateString()}
                 </p>
-                <div className="mt-2 flex items-center justify-between">
+                <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">{exam.resultsCount} recorded</span>
-                  {exam.averagePercent !== null ? (
-                    <Badge variant="outline">{exam.averagePercent}% avg</Badge>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">No marks yet</span>
-                  )}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Absent on exams predating the field, which reads as unpublished. */}
+                    {exam.isPublished && (
+                      <Badge variant="outline" className="border-primary/40 text-primary">
+                        <GlobeIcon /> Public
+                      </Badge>
+                    )}
+                    {exam.averagePercent !== null ? (
+                      <Badge variant="outline">{exam.averagePercent}% avg</Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No marks yet</span>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
