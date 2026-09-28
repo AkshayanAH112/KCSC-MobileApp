@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { TrendingUpIcon, TrophyIcon } from "lucide-react"
+import { DownloadIcon, TrendingUpIcon, TrophyIcon } from "lucide-react"
 
 import { api, type AnalysisResult, type Batch } from "@/lib/api"
+import { downloadAnalysisPdf, type AnalysisPdfFilters } from "@/lib/analysis-pdf"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -26,6 +27,10 @@ export default function AnalysisPage() {
   const [results, setResults] = useState<AnalysisResult[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  // Filters the current results were produced with, so the PDF header matches
+  // the list even if the inputs were edited afterwards without re-running.
+  const [reportFilters, setReportFilters] = useState<AnalysisPdfFilters | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     api.batches().then((d) => setBatches(d.batches))
@@ -42,6 +47,12 @@ export default function AnalysisPage() {
         batchId: batchId || undefined,
       })
       setResults(d.students)
+      setReportFilters({
+        start,
+        end,
+        gradeLabel: grade ? `Grade ${grade}` : "All grades",
+        batchLabel: batches.find((b) => b._id === batchId)?.name ?? "All batches",
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load analysis")
     } finally {
@@ -53,6 +64,18 @@ export default function AnalysisPage() {
     runReport()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const handleDownload = async () => {
+    if (!results || !reportFilters) return
+    setDownloading(true)
+    try {
+      await downloadAnalysisPdf(results, reportFilters)
+    } catch (e) {
+      setError(`Could not create PDF: ${e instanceof Error ? e.message : "unknown error"}`)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const gradeBatches = grade
     ? batches.filter((b) => b.grades.includes(Number(grade) as 3 | 4 | 5))
@@ -122,6 +145,11 @@ export default function AnalysisPage() {
             {results.length} {results.length === 1 ? "student" : "students"} · combined score is
             the average of results % and attendance % (whichever are available)
           </p>
+          {results.length > 0 && (
+            <Button variant="outline" className="w-full" onClick={handleDownload} disabled={downloading}>
+              {downloading ? <Spinner /> : <><DownloadIcon data-icon="inline-start" />Download PDF</>}
+            </Button>
+          )}
           {results.length === 0 ? (
             <Card className="py-12">
               <CardContent className="text-center text-sm text-muted-foreground">
