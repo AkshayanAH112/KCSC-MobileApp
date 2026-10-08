@@ -108,11 +108,35 @@ export interface ExamAttendanceContext {
   suggestedAbsentCount: number
 }
 
+/** An exam held in the analysis period — one column in the report. */
+export interface AnalysisExam {
+  key: string
+  label: string
+  subject: string
+  examDate: string
+  maxMarks: number
+  grade: Grade
+}
+
+/** One student's result on one exam they were expected to sit. `marks` is
+ * null unless they sat it. */
+export interface AnalysisStudentExam {
+  examKey: string
+  status: "sat" | "absent" | "missing"
+  marks: number | null
+  maxMarks: number
+}
+
 export interface AnalysisResult {
   studentId: string
   name: string
+  school: string | null
   grade: Grade
+  exams: AnalysisStudentExam[]
   examCount: number
+  examsSat: number
+  examsTotal: number
+  examsMissed: number
   avgMarksPercent: number | null
   attendancePercent: number | null
   combinedScore: number | null
@@ -598,7 +622,11 @@ export const api = {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v) as [string, string][]
     ).toString()
-    return request<{ students: AnalysisResult[]; range: { start: string; end: string } }>(
+    return request<{
+      students: AnalysisResult[]
+      exams: AnalysisExam[]
+      range: { start: string; end: string }
+    }>(
       `/api/analysis?${qs}`
     )
   },

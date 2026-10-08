@@ -2,7 +2,7 @@ import { Capacitor } from "@capacitor/core"
 import { Filesystem, Directory } from "@capacitor/filesystem"
 import { Share } from "@capacitor/share"
 
-import type { AnalysisResult } from "@/lib/api"
+import type { AnalysisExam, AnalysisResult, AnalysisStudentExam } from "@/lib/api"
 
 /**
  * PDF export for the Analysis report — mirrors Web app/lib/analysis-pdf.ts so
@@ -54,14 +54,30 @@ async function loadLogo(): Promise<string | null> {
 
 const pct = (v: number | null) => (v === null ? "—" : `${v}%`)
 
-export async function downloadAnalysisPdf(rows: AnalysisResult[], filters: AnalysisPdfFilters) {
+export function examDateLabel(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+}
+
+/** Ab = marked absent, — = no mark recorded, blank = not held for this student. */
+function examCell(result: AnalysisStudentExam | undefined) {
+  if (!result) return ""
+  if (result.status === "sat") return String(result.marks)
+  return result.status === "absent" ? "Ab" : "—"
+}
+
+export async function downloadAnalysisPdf(
+  rows: AnalysisResult[],
+  exams: AnalysisExam[],
+  filters: AnalysisPdfFilters
+) {
   const [{ jsPDF }, { default: autoTable }, logo] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
     loadLogo(),
   ])
 
-  const doc = new jsPDF({ unit: "mm", format: "a4" })
+  // Each exam adds a column; past a couple the table no longer fits portrait.
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: exams.length > 2 ? "landscape" : "portrait" })
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 14
 
@@ -96,27 +112,51 @@ export async function downloadAnalysisPdf(rows: AnalysisResult[], filters: Analy
 
   autoTable(doc, {
     startY: 43,
-    margin: { left: margin, right: margin },
-    head: [["Rank", "Student", "Grade", "Exams", "Avg. Marks", "Attendance", "Combined"]],
-    body: rows.map((r, i) => [
-      String(i + 1),
-      r.name,
-      `Grade ${r.grade}`,
-      String(r.examCount),
-      pct(r.avgMarksPercent),
-      pct(r.attendancePercent),
-      r.partial ? `${pct(r.combinedScore)} (partial)` : pct(r.combinedScore),
-    ]),
-    styles: { font: "helvetica", fontSize: 9, cellPadding: 2.2, textColor: [40, 40, 40] },
+    // Bottom margin leaves room for the three-line footer note on every page.
+    margin: { left: margin, right: margin, bottom: 23 },
+    head: [
+      [
+        "Rank",
+        "Student",
+        "School",
+        "Grade",
+        ...exams.map((e) => `${e.label}\n${examDateLabel(e.examDate)} /${e.maxMarks}`),
+        "Exams",
+        "Avg. Marks",
+        "Attendance",
+        "Combined",
+      ],
+    ],
+    body: rows.map((r, i) => {
+      const byExam = new Map(r.exams.map((e) => [e.examKey, e]))
+      return [
+        String(i + 1),
+        r.name,
+        r.school ?? "",
+        `Grade ${r.grade}`,
+        ...exams.map((e) => examCell(byExam.get(e.key))),
+        r.examsTotal > 0 ? `${r.examsSat}/${r.examsTotal}` : "—",
+        pct(r.avgMarksPercent),
+        pct(r.attendancePercent),
+        r.partial ? `${pct(r.combinedScore)} (partial)` : pct(r.combinedScore),
+      ]
+    }),
+    styles: {
+      font: "helvetica",
+      fontSize: exams.length > 6 ? 7.5 : 9,
+      cellPadding: 2.2,
+      textColor: [40, 40, 40],
+    },
     headStyles: { fillColor: MAROON, textColor: [255, 255, 255], fontStyle: "bold" },
     alternateRowStyles: { fillColor: [250, 245, 245] },
     columnStyles: {
-      0: { halign: "center", fontStyle: "bold", cellWidth: 14 },
+      0: { halign: "center", fontStyle: "bold", cellWidth: 12 },
       1: { fontStyle: "bold" },
-      3: { halign: "center" },
-      4: { halign: "right" },
-      5: { halign: "right" },
-      6: { halign: "right", fontStyle: "bold", textColor: MAROON },
+      ...Object.fromEntries(exams.map((_, i) => [4 + i, { halign: "center" as const }])),
+      [4 + exams.length]: { halign: "center" },
+      [5 + exams.length]: { halign: "right" },
+      [6 + exams.length]: { halign: "right" },
+      [7 + exams.length]: { halign: "right", fontStyle: "bold", textColor: MAROON },
     },
   })
 
@@ -135,9 +175,13 @@ export async function downloadAnalysisPdf(rows: AnalysisResult[], filters: Analy
     doc.setFontSize(7.5)
     doc.setTextColor(110, 110, 110)
     doc.text(
-      'Combined score = average of avg. exam % and attendance % over the period. "partial" = only one of the two was available.',
+      [
+        "Ranked by exams missed first (sat every exam, then missed 1, 2 and so on), then by combined score.",
+        "Exam columns: Ab = marked absent, — = no mark recorded, blank = exam not held for that student's batch.",
+        'Combined score = average of avg. exam % and attendance % over the period. "partial" = only one of the two was available.',
+      ],
       margin,
-      pageHeight - 12
+      pageHeight - 18.5
     )
     doc.text(`Generated ${generated}`, margin, pageHeight - 7)
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: "right" })

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
 import { DownloadIcon, TrendingUpIcon, TrophyIcon } from "lucide-react"
 
-import { api, type AnalysisResult, type Batch } from "@/lib/api"
-import { downloadAnalysisPdf, type AnalysisPdfFilters } from "@/lib/analysis-pdf"
+import { api, type AnalysisExam, type AnalysisResult, type Batch } from "@/lib/api"
+import { downloadAnalysisPdf, examDateLabel, type AnalysisPdfFilters } from "@/lib/analysis-pdf"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,6 +25,7 @@ export default function AnalysisPage() {
   const [batches, setBatches] = useState<Batch[]>([])
   const [batchId, setBatchId] = useState("")
   const [results, setResults] = useState<AnalysisResult[] | null>(null)
+  const [exams, setExams] = useState<AnalysisExam[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   // Filters the current results were produced with, so the PDF header matches
@@ -47,6 +48,7 @@ export default function AnalysisPage() {
         batchId: batchId || undefined,
       })
       setResults(d.students)
+      setExams(d.exams ?? [])
       setReportFilters({
         start,
         end,
@@ -69,13 +71,15 @@ export default function AnalysisPage() {
     if (!results || !reportFilters) return
     setDownloading(true)
     try {
-      await downloadAnalysisPdf(results, reportFilters)
+      await downloadAnalysisPdf(results, exams, reportFilters)
     } catch (e) {
       setError(`Could not create PDF: ${e instanceof Error ? e.message : "unknown error"}`)
     } finally {
       setDownloading(false)
     }
   }
+
+  const examsByKey = new Map(exams.map((e) => [e.key, e]))
 
   const gradeBatches = grade
     ? batches.filter((b) => b.grades.includes(Number(grade) as 3 | 4 | 5))
@@ -142,8 +146,9 @@ export default function AnalysisPage() {
       {!loading && results && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {results.length} {results.length === 1 ? "student" : "students"} · combined score is
-            the average of results % and attendance % (whichever are available)
+            {results.length} {results.length === 1 ? "student" : "students"} · students who sat
+            every exam rank first, then those who missed 1, 2 and so on · combined score is the
+            average of results % and attendance % (whichever are available)
           </p>
           {results.length > 0 && (
             <Button variant="outline" className="w-full" onClick={handleDownload} disabled={downloading}>
@@ -159,27 +164,54 @@ export default function AnalysisPage() {
           ) : (
             results.map((r, i) => (
               <Card key={r.studentId} className="py-3">
-                <CardContent className="flex items-center gap-3 px-4">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground">
-                    {i === 0 ? <TrophyIcon className="size-4 text-warning" /> : i + 1}
+                <CardContent className="space-y-2 px-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground">
+                      {i === 0 ? <TrophyIcon className="size-4 text-warning" /> : i + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">{r.name}</p>
+                      {r.school && <p className="truncate text-xs text-muted-foreground">{r.school}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        Grade {r.grade}
+                        {r.partial ? " · partial data" : ""}
+                        {r.examsTotal > 0 ? ` · ${r.examsSat}/${r.examsTotal} exams` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="tabular text-lg font-bold text-primary">
+                        {r.combinedScore ?? "—"}
+                        {r.combinedScore !== null ? "%" : ""}
+                      </p>
+                      <p className="tabular text-xs text-muted-foreground">
+                        {r.avgMarksPercent ?? "—"}% marks · {r.attendancePercent ?? "—"}% present
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{r.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Grade {r.grade}
-                      {r.partial ? " · partial data" : ""}
-                      {r.examCount > 0 ? ` · ${r.examCount} exam${r.examCount === 1 ? "" : "s"}` : ""}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="tabular text-lg font-bold text-primary">
-                      {r.combinedScore ?? "—"}
-                      {r.combinedScore !== null ? "%" : ""}
-                    </p>
-                    <p className="tabular text-xs text-muted-foreground">
-                      {r.avgMarksPercent ?? "—"}% marks · {r.attendancePercent ?? "—"}% present
-                    </p>
-                  </div>
+                  {r.exams.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 border-t pt-2">
+                      {r.exams.map((e) => {
+                        const info = examsByKey.get(e.examKey)
+                        return (
+                          <span
+                            key={e.examKey}
+                            className="tabular rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                          >
+                            {info ? `${info.label} ${examDateLabel(info.examDate)}: ` : ""}
+                            {e.status === "sat" ? (
+                              <span className="font-semibold text-foreground">
+                                {e.marks}/{e.maxMarks}
+                              </span>
+                            ) : e.status === "absent" ? (
+                              <span className="font-semibold text-destructive">Absent</span>
+                            ) : (
+                              <span>No mark</span>
+                            )}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))
