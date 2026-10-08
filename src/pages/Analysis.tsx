@@ -146,9 +146,9 @@ export default function AnalysisPage() {
       {!loading && results && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {results.length} {results.length === 1 ? "student" : "students"} · students who sat
-            every exam rank first, then those who missed 1, 2 and so on · combined score is the
-            average of results % and attendance % (whichever are available)
+            {results.length} {results.length === 1 ? "student" : "students"} · ranked by number of
+            exams sat (most first, none last), then by average exam mark · attendance only breaks
+            a tie
           </p>
           {results.length > 0 && (
             <Button variant="outline" className="w-full" onClick={handleDownload} disabled={downloading}>
@@ -174,17 +174,16 @@ export default function AnalysisPage() {
                       {r.school && <p className="truncate text-xs text-muted-foreground">{r.school}</p>}
                       <p className="text-xs text-muted-foreground">
                         Grade {r.grade}
-                        {r.partial ? " · partial data" : ""}
-                        {r.examsTotal > 0 ? ` · ${r.examsSat}/${r.examsTotal} exams` : ""}
+                        {` · ${r.examsSat}${r.examsTotal > 0 ? `/${r.examsTotal}` : ""} exams`}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="tabular text-lg font-bold text-primary">
-                        {r.combinedScore ?? "—"}
-                        {r.combinedScore !== null ? "%" : ""}
+                        {r.avgMarksPercent ?? "—"}
+                        {r.avgMarksPercent !== null ? "%" : ""}
                       </p>
                       <p className="tabular text-xs text-muted-foreground">
-                        {r.avgMarksPercent ?? "—"}% marks · {r.attendancePercent ?? "—"}% present
+                        {r.attendancePercent ?? "—"}% present
                       </p>
                     </div>
                   </div>

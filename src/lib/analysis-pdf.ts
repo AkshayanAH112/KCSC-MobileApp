@@ -112,8 +112,8 @@ export async function downloadAnalysisPdf(
 
   autoTable(doc, {
     startY: 43,
-    // Bottom margin leaves room for the three-line footer note on every page.
-    margin: { left: margin, right: margin, bottom: 23 },
+    // Bottom margin leaves room for the two-line footer note on every page.
+    margin: { left: margin, right: margin, bottom: 20 },
     head: [
       [
         "Rank",
@@ -124,7 +124,6 @@ export async function downloadAnalysisPdf(
         "Exams",
         "Avg. Marks",
         "Attendance",
-        "Combined",
       ],
     ],
     body: rows.map((r, i) => {
@@ -135,10 +134,9 @@ export async function downloadAnalysisPdf(
         r.school ?? "",
         `Grade ${r.grade}`,
         ...exams.map((e) => examCell(byExam.get(e.key))),
-        r.examsTotal > 0 ? `${r.examsSat}/${r.examsTotal}` : "—",
+        r.examsTotal > 0 ? `${r.examsSat}/${r.examsTotal}` : "0",
         pct(r.avgMarksPercent),
         pct(r.attendancePercent),
-        r.partial ? `${pct(r.combinedScore)} (partial)` : pct(r.combinedScore),
       ]
     }),
     styles: {
@@ -154,9 +152,8 @@ export async function downloadAnalysisPdf(
       1: { fontStyle: "bold" },
       ...Object.fromEntries(exams.map((_, i) => [4 + i, { halign: "center" as const }])),
       [4 + exams.length]: { halign: "center" },
-      [5 + exams.length]: { halign: "right" },
+      [5 + exams.length]: { halign: "right", fontStyle: "bold", textColor: MAROON },
       [6 + exams.length]: { halign: "right" },
-      [7 + exams.length]: { halign: "right", fontStyle: "bold", textColor: MAROON },
     },
   })
 
@@ -176,12 +173,11 @@ export async function downloadAnalysisPdf(
     doc.setTextColor(110, 110, 110)
     doc.text(
       [
-        "Ranked by exams missed first (sat every exam, then missed 1, 2 and so on), then by combined score.",
+        "Ranked by number of exams sat (most first, none last), then by average exam mark; attendance only breaks a tie.",
         "Exam columns: Ab = marked absent, — = no mark recorded, blank = exam not held for that student's batch.",
-        'Combined score = average of avg. exam % and attendance % over the period. "partial" = only one of the two was available.',
       ],
       margin,
-      pageHeight - 18.5
+      pageHeight - 15.5
     )
     doc.text(`Generated ${generated}`, margin, pageHeight - 7)
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 7, { align: "right" })
