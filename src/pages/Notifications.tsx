@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangleIcon, CheckCircle2Icon, ShieldAlertIcon } from "lucide-react"
+import { AlertTriangleIcon, CheckCircle2Icon, ShieldAlertIcon, Trash2Icon, UserXIcon } from "lucide-react"
 
 import { api, type AttendanceNotification, type NotificationStatus } from "@/lib/api"
+import { useSession } from "@/lib/session"
+import { ConfirmDialog, AlertModal } from "@/components/confirm-dialog"
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +21,10 @@ export default function NotificationsPage() {
   const [tab, setTab] = useState<NotificationStatus>("pending")
   const [notifications, setNotifications] = useState<AttendanceNotification[]>([])
   const [loading, setLoading] = useState(true)
+  const { role } = useSession()
+  const [deactivateTarget, setDeactivateTarget] = useState<AttendanceNotification | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<AttendanceNotification | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const fetchData = (status: NotificationStatus) => {
     setLoading(true)
@@ -36,6 +42,36 @@ export default function NotificationsPage() {
   const updateStatus = async (id: string, status: NotificationStatus) => {
     await api.updateNotification(id, status)
     fetchData(tab)
+  }
+
+  // Deactivating is the answer to a 3-leave alert, so the alert is resolved
+  // with it rather than left pending for a second tap.
+  const deactivateStudent = async () => {
+    const target = deactivateTarget
+    if (!target) return
+    setDeactivateTarget(null)
+    try {
+      await api.updateStudent(target.studentId, { isActive: false })
+      await api.updateNotification(target._id, "resolved")
+      fetchData(tab)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to deactivate")
+    }
+  }
+
+  // A student at 3 leaves always has attendance rows, so a plain delete would
+  // only ever be refused — this goes straight to the admin-only force delete,
+  // which also erases the student's notifications (this card included).
+  const removeStudent = async () => {
+    const target = removeTarget
+    if (!target) return
+    setRemoveTarget(null)
+    try {
+      await api.deleteStudent(target.studentId, true)
+      fetchData(tab)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to remove")
+    }
   }
 
   return (
@@ -107,11 +143,51 @@ export default function NotificationsPage() {
                     </Button>
                   )}
                 </div>
+                {/* Only the 3-leave alert asks for a decision about the student themselves. */}
+                {n.type === "admin_critical" && n.status !== "resolved" && (
+                  <div className="mt-2 flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setDeactivateTarget(n)}>
+                      <UserXIcon /> Deactivate
+                    </Button>
+                    {role === "admin" && (
+                      <Button variant="destructive" size="sm" className="flex-1" onClick={() => setRemoveTarget(n)}>
+                        <Trash2Icon /> Remove
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deactivateTarget !== null}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={deactivateStudent}
+        title={`Deactivate ${deactivateTarget?.studentName ?? "this student"}?`}
+        description="They leave every class register but keep their attendance and marks history. This alert is marked resolved. You can reactivate them from the student page."
+        confirmLabel="Deactivate"
+      />
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={removeStudent}
+        title={`Remove ${removeTarget?.studentName ?? "this student"} permanently?`}
+        description="This erases the student together with all of their attendance records, marks and alerts. It cannot be undone. Deactivate instead if the history should be kept."
+        confirmLabel="Remove permanently"
+        tone="danger"
+      />
+
+      <AlertModal
+        open={actionError !== null}
+        onClose={() => setActionError(null)}
+        title="That didn't work"
+        description={actionError ?? undefined}
+        tone="danger"
+      />
     </div>
   )
 }
