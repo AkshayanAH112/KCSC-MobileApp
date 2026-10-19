@@ -67,6 +67,8 @@ export interface MarksRecord {
   // than one active batch at once (e.g. a new intake starting while an older
   // one is still running), so grade alone doesn't uniquely scope an exam roster.
   batchId?: Batch | string | null
+  /** Denormalized from the exam: which part of a two-part paper this mark is for. */
+  part?: number
 }
 
 export interface Exam {
@@ -84,6 +86,33 @@ export interface Exam {
   // unpublished, which is the safe direction to fail.
   isPublished?: boolean
   publishedAt?: string | null
+  // Set on each part of a two-part (scholarship-format) paper; both parts
+  // share a paperSetId and are ranked on the combined total.
+  part?: number
+  paperSetId?: string
+}
+
+/**
+ * Part 1 + Part 2 combined, for a two-part paper — computed server-side by
+ * lib/examPapers.ts in the Web app, so the ranks match the web console, the
+ * Analysis report and the public Results page exactly.
+ */
+export interface PaperSet {
+  paperSetId: string
+  maxTotal: number
+  /** Students who sat every part — the only ones ranked. */
+  rankedCount: number
+  parts: { _id: string; part: number; examDate: string; maxMarks: number; isPublished: boolean }[]
+  results: {
+    studentId: string
+    student: { _id: string; name: string; registrationNumber: string | null; school: string | null }
+    /** In part order; null = no mark recorded for that part yet. */
+    parts: ({ examId: string; part: number; marks: number | null; isAbsent: boolean } | null)[]
+    total: number | null
+    /** absent = missed a part; incomplete = a part not entered yet. Neither is ranked. */
+    status: "complete" | "absent" | "incomplete"
+    rank: number | null
+  }[]
 }
 
 export interface ExamRosterEntry {
@@ -561,23 +590,27 @@ export const api = {
     return request<{ exams: Exam[] }>(`/api/exams${qs ? `?${qs}` : ""}`)
   },
 
-  createExam: (data: {
-    subject: string
-    grade: number
-    batchId: string
-    examDate: string
-    maxMarks: number
-    name?: string
-  }) =>
-    request<{ exam: Exam }>("/api/exams", {
+  /** A single subject exam, or — with `parts` — a two-part paper, created as
+   *  one Exam per part. `exam` in the response is Part 1. */
+  createExam: (
+    data: { subject: string; grade: number; batchId: string; name?: string } & (
+      | { examDate: string; maxMarks: number }
+      | { parts: { part: number; examDate: string; maxMarks: number }[] }
+    )
+  ) =>
+    request<{ exam: Exam; exams?: Exam[] }>("/api/exams", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   examDetail: (id: string) =>
-    request<{ exam: Exam; roster: ExamRosterEntry[]; attendance?: ExamAttendanceContext }>(
-      `/api/exams/${id}`
-    ),
+    request<{
+      exam: Exam
+      roster: ExamRosterEntry[]
+      attendance?: ExamAttendanceContext
+      /** Present only for a part of a two-part paper. */
+      paperSet?: PaperSet | null
+    }>(`/api/exams/${id}`),
 
   updateExam: (
     id: string,

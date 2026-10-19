@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { GlobeIcon, GraduationCapIcon, PlusIcon } from "lucide-react"
 
 import { api, type Batch, type Exam, type Student } from "@/lib/api"
+import { examTitle } from "@/lib/exam"
 import { PageHeader } from "@/components/page-header"
 import { AlertModal } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -81,9 +82,7 @@ export default function ExamsPage() {
             >
               <CardContent className="px-4">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="min-w-0 truncate font-semibold">
-                    {exam.name ? `${exam.subject} — ${exam.name}` : exam.subject}
-                  </p>
+                  <p className="min-w-0 truncate font-semibold">{examTitle(exam)}</p>
                   <Badge variant="secondary">Grade {exam.grade}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -139,10 +138,16 @@ function NewExamDialog({
 
   const [grade, setGrade] = useState("3")
   const [batchId, setBatchId] = useState(gradeBatches("3")[0]?._id ?? "")
+  // "single": one subject exam. "paper": a two-part scholarship-format paper,
+  // created as Part 1 + Part 2 and ranked on the combined total.
+  const [kind, setKind] = useState<"single" | "paper">("single")
   const [subject, setSubject] = useState("")
   const [name, setName] = useState("")
   const [maxMarks, setMaxMarks] = useState(100)
   const [examDate, setExamDate] = useState("")
+  // Part 2 is often sat the same day; it only differs when staff change it.
+  const [part2Date, setPart2Date] = useState("")
+  const [part2Max, setPart2Max] = useState(100)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [students, setStudents] = useState<Student[]>([])
@@ -168,14 +173,18 @@ function NewExamDialog({
     e.preventDefault()
     setSaving(true)
     try {
-      const res = await api.createExam({
-        subject,
-        grade: Number(grade),
-        batchId,
-        examDate,
-        maxMarks,
-        name: name || undefined,
-      })
+      const common = { subject, grade: Number(grade), batchId, name: name || undefined }
+      const res = await api.createExam(
+        kind === "paper"
+          ? {
+              ...common,
+              parts: [
+                { part: 1, examDate, maxMarks },
+                { part: 2, examDate: part2Date || examDate, maxMarks: part2Max },
+              ],
+            }
+          : { ...common, examDate, maxMarks }
+      )
       onCreated(res.exam._id)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create exam")
@@ -191,6 +200,38 @@ function NewExamDialog({
           <DialogTitle>New Exam</DialogTitle>
         </DialogHeader>
         <form onSubmit={create} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Exam Type</Label>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label="Exam type">
+              {([
+                ["single", "Subject exam"],
+                ["paper", "Part 1 + Part 2"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={kind === value}
+                  onClick={() => {
+                    setKind(value)
+                    if (value === "paper" && !subject) setSubject("Scholarship Paper")
+                    if (value === "single" && subject === "Scholarship Paper") setSubject("")
+                  }}
+                  className={`rounded-md px-2 py-2 text-sm font-semibold transition-colors ${
+                    kind === value ? "bg-card text-foreground shadow-xs" : "text-muted-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {kind === "paper" && (
+              <p className="text-xs text-muted-foreground">
+                Scholarship format: two parts, same day or different days. Students are ranked on Part 1 + Part 2
+                combined.
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="examGrade">Grade</Label>
@@ -212,23 +253,34 @@ function NewExamDialog({
               </Select>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="examDate">Exam Date</Label>
-            <Input id="examDate" type="date" required value={examDate} onChange={(e) => setExamDate(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="examSubject">Subject</Label>
-            <Input
-              id="examSubject"
-              required
-              placeholder="e.g. Mathematics"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="examSubject">Subject</Label>
+              <Input
+                id="examSubject"
+                required
+                placeholder={kind === "paper" ? "e.g. Scholarship Paper" : "e.g. Mathematics"}
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="examName">Label (optional)</Label>
+              <Input
+                id="examName"
+                placeholder={kind === "paper" ? "e.g. Model 3" : "e.g. Mid-term"}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="examMax">Max Marks</Label>
+              <Label htmlFor="examDate">{kind === "paper" ? "Part 1 Date" : "Exam Date"}</Label>
+              <Input id="examDate" type="date" required value={examDate} onChange={(e) => setExamDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="examMax">{kind === "paper" ? "Part 1 Max" : "Max Marks"}</Label>
               <Input
                 id="examMax"
                 type="number"
@@ -238,11 +290,37 @@ function NewExamDialog({
                 onChange={(e) => setMaxMarks(Number(e.target.value))}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="examName">Label (optional)</Label>
-              <Input id="examName" placeholder="e.g. Mid-term" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
           </div>
+          {kind === "paper" && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="examDate2">Part 2 Date</Label>
+                  <Input
+                    id="examDate2"
+                    type="date"
+                    value={part2Date || examDate}
+                    onChange={(e) => setPart2Date(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="examMax2">Part 2 Max</Label>
+                  <Input
+                    id="examMax2"
+                    type="number"
+                    min={1}
+                    required
+                    value={part2Max}
+                    onChange={(e) => setPart2Max(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ranked out of <span className="tabular font-semibold text-foreground">{maxMarks + part2Max}</span>{" "}
+                (Part 1 + Part 2).
+              </p>
+            </>
+          )}
           {batchId && eligibleCount === 0 && (
             <p className="rounded-lg bg-warning/15 px-3 py-2 text-xs font-medium text-warning">
               No Grade {grade} students are registered in this batch yet — the exam will start with an empty roster.

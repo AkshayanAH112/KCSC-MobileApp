@@ -257,7 +257,7 @@ export default function StudentDetailPage() {
               className="flex items-center justify-between rounded-lg border p-3 text-sm"
             >
               <div>
-                <p className="font-medium">{m.subject}</p>
+                <p className="font-medium">{m.part ? `${m.subject} — Part ${m.part}` : m.subject}</p>
                 <p className="text-xs text-muted-foreground">
                   {new Date(m.examDate).toLocaleDateString()}
                 </p>

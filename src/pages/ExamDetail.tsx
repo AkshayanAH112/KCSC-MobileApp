@@ -11,7 +11,8 @@ import {
   TrophyIcon,
 } from "lucide-react"
 
-import { api, type Exam, type ExamAttendanceContext, type ExamRosterEntry } from "@/lib/api"
+import { api, type Exam, type ExamAttendanceContext, type ExamRosterEntry, type PaperSet } from "@/lib/api"
+import { examTitle } from "@/lib/exam"
 import { ConfirmDialog, AlertModal } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,15 @@ export default function ExamDetailPage() {
   // to delete when one is dismissed — it just stops being offered until reload.
   const [dismissedHints, setDismissedHints] = useState<Set<string>>(new Set())
   const [applyingHints, setApplyingHints] = useState(false)
+  const [paperSet, setPaperSet] = useState<PaperSet | null>(null)
+
+  // Switching between Part 1 and Part 2 reuses this screen (same route, new
+  // id), so per-exam UI state must not carry over from the other part.
+  useEffect(() => {
+    setDismissedHints(new Set())
+    setEntries({})
+    setSearch("")
+  }, [id])
 
   const fetchData = useCallback(async () => {
     if (!id) return
@@ -53,6 +63,7 @@ export default function ExamDetailPage() {
       setExam(d.exam)
       setRoster(d.roster)
       setAttendance(d.attendance ?? null)
+      setPaperSet(d.paperSet ?? null)
     } catch (e) {
       console.error(e)
     } finally {
@@ -200,9 +211,7 @@ export default function ExamDetailPage() {
               </Button>
             </div>
           </div>
-          <h1 className="mt-2 font-heading text-lg font-bold">
-            {exam.name ? `${exam.subject} — ${exam.name}` : exam.subject}
-          </h1>
+          <h1 className="mt-2 font-heading text-lg font-bold">{examTitle(exam)}</h1>
           <p className="text-sm text-muted-foreground">
             {typeof exam.batchId === "object" ? exam.batchId.name : ""} · {new Date(exam.examDate).toLocaleDateString()} · Out of{" "}
             {exam.maxMarks}
@@ -216,6 +225,14 @@ export default function ExamDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {paperSet && (
+        <CombinedStandings
+          currentExamId={exam._id}
+          paperSet={paperSet}
+          onOpenPart={(examId) => navigate(`/exams/${examId}`, { replace: true })}
+        />
+      )}
 
       {/* The gate on the public /results page. Unpublished is the default and the
           safe state: marks are typed and corrected over several days, and this is
@@ -237,6 +254,11 @@ export default function ExamDetailPage() {
                   ? "Anyone with a student's registration number can see these marks on the public Results page."
                   : "Nothing here is visible on the public site yet. Publish once every mark is entered and checked."}
               </p>
+              {paperSet && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This is Part {exam.part} only. Parents see the combined total once both parts are published.
+                </p>
+              )}
             </div>
           </div>
           <Button
@@ -391,8 +413,12 @@ export default function ExamDetailPage() {
         open={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}
         onConfirm={handleDelete}
-        title="Delete this exam?"
-        description={`This will also delete its ${recordedCount} recorded mark(s). This cannot be undone.`}
+        title={paperSet ? "Delete this whole paper?" : "Delete this exam?"}
+        description={
+          paperSet
+            ? "Part 1 and Part 2 are deleted together, with every mark recorded on either part. This cannot be undone."
+            : `This will also delete its ${recordedCount} recorded mark(s). This cannot be undone.`
+        }
         confirmLabel="Delete"
         tone="danger"
       />
@@ -435,6 +461,103 @@ function buildRanking(roster: ExamRosterEntry[]) {
   })
 
   return { scored, rankByStudentId, rankedRoster }
+}
+
+/**
+ * Part 1 + Part 2 combined — the ranking that decides placing in the
+ * scholarship format. Comes from the API, so it matches the web console, the
+ * Analysis report and the public Results page.
+ */
+function CombinedStandings({
+  currentExamId,
+  paperSet,
+  onOpenPart,
+}: {
+  currentExamId: string
+  paperSet: PaperSet
+  onOpenPart: (examId: string) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const { parts, results, maxTotal, rankedCount } = paperSet
+  const shown = expanded ? results : results.slice(0, 5)
+
+  return (
+    <Card className="py-4">
+      <CardContent className="space-y-3 px-4">
+        {/* Part switcher: each part has its own marks sheet. */}
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+          {parts.map((p) => {
+            const isCurrent = p._id === currentExamId
+            return (
+              <button
+                key={p._id}
+                type="button"
+                aria-current={isCurrent ? "page" : undefined}
+                onClick={() => !isCurrent && onOpenPart(p._id)}
+                className={`flex flex-col items-center rounded-md px-2 py-1.5 text-sm font-semibold transition-colors ${
+                  isCurrent ? "bg-card text-foreground shadow-xs" : "text-muted-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  Part {p.part}
+                  {p.isPublished && <GlobeIcon className="size-3 text-primary" aria-label="Published" />}
+                </span>
+                <span className="text-[10px] font-normal">{new Date(p.examDate).toLocaleDateString()}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-bold">
+            <TrophyIcon className="size-4 text-primary" /> Combined ranking
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Part 1 + Part 2, out of {maxTotal}. Only students who sat both parts are ranked ({rankedCount} so far).
+          </p>
+        </div>
+
+        {results.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No marks entered on either part yet.</p>
+        ) : (
+          <div className="divide-y rounded-lg border">
+            {shown.map((r) => (
+              <div key={r.studentId} className="flex items-center gap-2.5 px-3 py-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted tabular text-[11px] font-bold text-muted-foreground">
+                  {r.rank ?? "—"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{r.student.name}</p>
+                  <p className="tabular text-[11px] text-muted-foreground">
+                    {r.parts
+                      .map((p, i) =>
+                        `P${parts[i].part}: ${p === null ? "—" : p.isAbsent ? "Absent" : p.marks}`
+                      )
+                      .join(" · ")}
+                  </p>
+                </div>
+                {r.total !== null ? (
+                  <span className="tabular shrink-0 text-sm font-bold">
+                    {r.total}
+                    <span className="text-xs font-normal text-muted-foreground">/{maxTotal}</span>
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[10px] font-bold uppercase text-muted-foreground">
+                    {r.status === "absent" ? "Absent" : "Pending"}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {results.length > 5 && (
+          <Button variant="ghost" size="sm" className="w-full" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? "Show top 5 only" : `Show all ${results.length}`}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 function EditExamDialog({
@@ -499,6 +622,11 @@ function EditExamDialog({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">Changing Max Marks does not rescale marks already entered.</p>
+          {exam.paperSetId && (
+            <p className="text-xs text-muted-foreground">
+              Subject and label apply to both parts. Date and Max Marks are for Part {exam.part} only.
+            </p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
