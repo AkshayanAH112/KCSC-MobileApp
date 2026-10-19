@@ -7,8 +7,8 @@ android {
         applicationId "lk.kcsc.admin"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.5"
+        versionCode 7
+        versionName "1.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +16,32 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing for the cloud build (.github/workflows/android-release.yml),
+    // which decodes the keystore from a repository secret and passes these four
+    // environment variables. Applied only when they are all set, so a local
+    // Android Studio "Generate Signed APK" build is unaffected. Must be the same
+    // keystore every release builds were signed with, or installed apps will
+    // refuse the update.
+    def releaseKeystore = System.getenv("KCSC_KEYSTORE_PATH")
+    def hasReleaseSigning = releaseKeystore &&
+        System.getenv("KCSC_KEYSTORE_PASSWORD") &&
+        System.getenv("KCSC_KEY_ALIAS") &&
+        System.getenv("KCSC_KEY_PASSWORD")
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv("KCSC_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KCSC_KEY_ALIAS")
+                keyPassword System.getenv("KCSC_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
