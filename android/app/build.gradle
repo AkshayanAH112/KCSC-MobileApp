@@ -19,9 +19,9 @@ android {
     // Release signing for the cloud build (.github/workflows/android-release.yml),
     // which decodes the keystore from a repository secret and passes these four
     // environment variables. Applied only when they are all set, so a local
-    // Android Studio "Generate Signed APK" build is unaffected. Must be the same
-    // keystore every release builds were signed with, or installed apps will
-    // refuse the update.
+    // Android Studio build is unaffected. Every release from 1.6 on must be
+    // signed with the same club release keystore, or installed apps will refuse
+    // the update (1.0–1.5 were debug-signed; see the workflow header).
     def releaseKeystore = System.getenv("KCSC_KEYSTORE_PATH")
     def hasReleaseSigning = releaseKeystore &&
         System.getenv("KCSC_KEYSTORE_PASSWORD") &&

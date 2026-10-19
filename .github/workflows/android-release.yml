@@ -7,12 +7,16 @@
 # as an artifact.
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
-#   ANDROID_KEYSTORE_BASE64   the release keystore, base64-encoded — the SAME
-#                             keystore earlier releases were signed with, or
-#                             phones will refuse to install it as an update
+#   ANDROID_KEYSTORE_BASE64   the club's release keystore (kcsc-release.jks),
+#                             base64-encoded
 #   ANDROID_KEYSTORE_PASSWORD
-#   ANDROID_KEY_ALIAS
-#   ANDROID_KEY_PASSWORD
+#   ANDROID_KEY_ALIAS         kcsc
+#   ANDROID_KEY_PASSWORD      same as the keystore password (PKCS12 keystore)
+#
+# Never swap this keystore: Android only installs an update signed with the
+# same key as the installed app. v1.6 is the first release signed with it —
+# 1.0–1.5 were signed with an Android Studio debug key, so moving to 1.6
+# needs a one-time uninstall of the old app on each phone.
 # Optional repository variable:
 #   VITE_API_BASE_URL         defaults to the production API below
 #
