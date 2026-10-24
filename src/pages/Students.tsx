@@ -43,6 +43,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("")
   const [filterBatch, setFilterBatch] = useState("")
   const [filterGrade, setFilterGrade] = useState(searchParams.get("grade") ?? "")
+  const [filterStatus, setFilterStatus] = useState(searchParams.get("status") ?? "")
 
   const [registerOpen, setRegisterOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -98,7 +99,9 @@ export default function StudentsPage() {
       s.name.toLowerCase().includes(search.toLowerCase()) &&
       (filterBatch === "" ||
         (typeof s.batchId === "object" && s.batchId?._id === filterBatch)) &&
-      (filterGrade === "" || String(s.grade) === filterGrade)
+      (filterGrade === "" || String(s.grade) === filterGrade) &&
+      (filterStatus === "" ||
+        (filterStatus === "active") === (s.isActive !== false))
   )
 
   return (
@@ -114,18 +117,17 @@ export default function StudentsPage() {
         }
       />
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search students…"
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+      <div className="relative">
+        <SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search students…"
+          className="pl-8"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
         <Select
-          className="w-28"
           value={filterGrade}
           onChange={(e) => setFilterGrade(e.target.value)}
         >
@@ -135,7 +137,6 @@ export default function StudentsPage() {
           <option value="5">Grade 5</option>
         </Select>
         <Select
-          className="w-36"
           value={filterBatch}
           onChange={(e) => setFilterBatch(e.target.value)}
         >
@@ -146,7 +147,21 @@ export default function StudentsPage() {
             </option>
           ))}
         </Select>
+        <Select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </Select>
       </div>
+
+      {!loading && (
+        <p className="text-xs text-muted-foreground">
+          Showing {filtered.length} of {students.length} students
+        </p>
+      )}
 
       {loading ? (
         <div className="space-y-3">
