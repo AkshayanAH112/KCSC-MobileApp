@@ -82,6 +82,7 @@ export default function ClassDetailPage() {
       await api.saveAttendance({ studentId, classId: id, present })
     } catch (e) {
       console.error("Failed to update attendance", e)
+      setError(e instanceof Error ? e.message : "Could not save attendance")
       fetchData()
     }
   }
@@ -264,6 +265,11 @@ export default function ClassDetailPage() {
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="min-w-0 truncate font-semibold">
                   {r.student.name}
+                  {!r.student.isActive && (
+                    <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                      Deactivated
+                    </span>
+                  )}
                 </p>
                 <p className="shrink-0 font-mono text-[10px] text-muted-foreground">
                   {r.student.qrCode}
@@ -311,7 +317,7 @@ export default function ClassDetailPage() {
         confirmLabel="Delete"
         tone="danger"
       />
-      <AlertModal open={error !== null} onClose={() => setError(null)} title="Failed to delete" description={error ?? undefined} tone="danger" />
+      <AlertModal open={error !== null} onClose={() => setError(null)} title="Something went wrong" description={error ?? undefined} tone="danger" />
 
       <Dialog open={endOpen} onOpenChange={(open) => !open && setEndOpen(false)}>
         <DialogContent className="max-w-sm">
